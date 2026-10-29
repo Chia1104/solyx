@@ -172,7 +172,7 @@ export function SymbolPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ColumnHeader className="gap-2">
+      <ColumnHeader className="gap-2 px-6">
         <SymbolQuote symbol={symbol} depth={depth} />
         <WatchToggle symbol={symbol} />
         <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -232,7 +232,8 @@ export function SymbolPage() {
           </ToggleButtonGroup>
         </div>
       </ColumnHeader>
-      <div ref={split} className="flex min-h-0 flex-1 flex-col">
+      {/* A margin rather than padding, so the room the splitters share out is the sheets' own. */}
+      <div ref={split} className="m-2 flex min-h-0 flex-1 flex-col">
         {/* The book stands beside the chart alone, so the news below runs the page's full width. */}
         <div ref={upper} className="flex min-h-40 flex-1">
           <div className="min-w-0 flex-1 sheet p-4">

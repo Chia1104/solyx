@@ -87,7 +87,7 @@ export function BacktestOn({ strategy }: { strategy: StrategyEntry }) {
 
         const code = typed.trim().toUpperCase();
 
-        // Typed codes are Taiwan's, as the title bar's search reads them.
+        // Typed codes are Taiwan's, as the workspace's search reads them.
         if (code) run({ market: Market.TW, symbol: code });
       }}>
       <span className="text-xs text-muted">

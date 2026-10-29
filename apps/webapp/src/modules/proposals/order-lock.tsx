@@ -13,7 +13,7 @@ import { tradingSettingsQuery } from "../settings/settings-query.ts";
 const TOOLTIP_DELAY = 300;
 
 /**
- * The user's lock on every order, in the title bar so it is one click away from anywhere; the
+ * The user's lock on every order, in the status bar so it is one click away from any page; the
  * desk reads it at each proposal and confirmation.
  */
 export function OrderLockToggle() {
@@ -31,9 +31,16 @@ export function OrderLockToggle() {
         aria-label={t("proposals.lock.label")}
         isSelected={data.locked}
         isDisabled={toggle.isPending}
-        className={cn(data.locked && "bg-warning text-warning-foreground")}
+        // As tall as the broker mode's chip beside it.
+        className={cn(
+          "size-6 min-w-6 rounded-sm",
+          data.locked && "bg-warning text-warning-foreground"
+        )}
         onChange={(locked) => toggle.mutate(locked)}>
-        <Icon icon={data.locked ? SquareLock02Icon : SquareUnlock02Icon} />
+        <Icon
+          icon={data.locked ? SquareLock02Icon : SquareUnlock02Icon}
+          className="size-3.5"
+        />
       </ToggleButton>
       <Tooltip.Content>
         <p className="font-medium">{t("proposals.lock.label")}</p>

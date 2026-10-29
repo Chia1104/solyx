@@ -29,6 +29,7 @@ import { useTranslation } from "react-i18next";
 import { SettingsSection } from "@solyx/api/settings-section";
 
 import { Icon } from "../../components/icon.tsx";
+import { PANE_LINK, PANE_LINK_ICON } from "../../components/pane-link.ts";
 
 import {
   FOOT_SECTIONS,
@@ -68,15 +69,8 @@ function SectionLink({ section }: { section: SettingsSection }) {
   const { t } = useTranslation();
 
   return (
-    <Link
-      to="/settings"
-      search={{ section }}
-      replace
-      className="group flex items-center gap-3 rounded-sheet px-4 py-2 text-sm outline-none hover:bg-default/60 focus-visible:bg-default data-[status=active]:sheet data-[status=active]:font-medium">
-      <Icon
-        icon={SECTION_ICON[section]}
-        className="shrink-0 text-muted group-data-[status=active]:text-foreground"
-      />
+    <Link to="/settings" search={{ section }} replace className={PANE_LINK}>
+      <Icon icon={SECTION_ICON[section]} className={PANE_LINK_ICON} />
       <span className="truncate">{t(`settings.sections.${section}`)}</span>
     </Link>
   );

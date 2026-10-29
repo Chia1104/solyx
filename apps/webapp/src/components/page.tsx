@@ -20,7 +20,7 @@ export function PageColumn({
   );
 }
 
-/** A titled page: the title on the table and the sections under it, each on a sheet of its own. */
+/** A titled page: the title in the main view's header and the sections under it, each on a sheet of its own. */
 export function Page({
   title,
   header,
@@ -35,9 +35,10 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <PageColumn>
-      <ColumnHeader className="gap-4">
-        {/* Beside controls the title gives way first on a narrow board; it still names the page to readers. */}
+    <div className="flex h-full flex-col">
+      {/* Inset a gap and a sheet's inset, so its text lines up with its sheets' while they fill the view. */}
+      <ColumnHeader className="gap-4 px-6">
+        {/* Beside controls the title gives way first on a narrow view; it still names the page to readers. */}
         <h1
           className={cn(
             "shrink-0 text-sm font-semibold",
@@ -48,7 +49,9 @@ export function Page({
         {header}
         {controls ? <div className="ml-auto shrink-0">{controls}</div> : null}
       </ColumnHeader>
-      {children}
-    </PageColumn>
+      <div data-page-body className="min-h-0 flex-1 overflow-y-auto p-2">
+        <PageColumn>{children}</PageColumn>
+      </div>
+    </div>
   );
 }

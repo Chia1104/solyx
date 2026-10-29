@@ -119,7 +119,7 @@ interface AgentServiceOptions extends AgentModelsOptions {
   conversations: Promise<AgentStore>;
   diagnostics: Pick<Diagnostics, "report">;
   marketData: MarketData;
-  /** The app's listing search, the one the title bar opens. */
+  /** The app's listing search, the one the workspace's search opens. */
   searchListings: (input: {
     query: string;
     market: Market | null;

@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { ProposalStatus } from "@solyx/core/order-desk";
 import { isEnumValue } from "@solyx/utils/is";
 
+import { ColumnHeader } from "../components/column-header.tsx";
+import { SEGMENT } from "../components/segment.ts";
 import { FillList } from "../modules/account/fills-table.tsx";
 import { ProfitLoss } from "../modules/account/profit-loss.tsx";
 import { WorkingOrderList } from "../modules/account/working-orders.tsx";
@@ -19,7 +21,8 @@ import {
 } from "../modules/proposals/proposal-queue.tsx";
 import { proposalsQuery } from "../modules/proposals/proposals-query.ts";
 
-const PANEL = "min-h-0 flex-1 overflow-y-auto p-0";
+// Each holds what it shows a gap inside the pane's rule and the window's edge.
+const PANEL = "min-h-0 flex-1 overflow-y-auto px-2 pt-0 pb-2";
 
 /**
  * The conversation with the agent and trading, as one row of tabs: the conversation with the
@@ -49,32 +52,30 @@ export function AgentPane() {
       onSelectionChange={(key) => {
         if (isEnumValue(AgentTab, key)) showTab(key);
       }}
-      className="relative flex h-full flex-col gap-0">
-      {/* The pane's header row is its tabs, as tall as every column's header so they line up. */}
-      <Tabs.ListContainer className="my-1 shrink-0 self-start">
-        <Tabs.List aria-label={t("agent.title")}>
-          {Object.values(AgentTab).map((each: AgentTab) => (
-            // HeroUI shares the row out evenly, which would break a label with a count between
-            // its characters; one that needs more room takes it from the others.
-            <Tabs.Tab
-              key={each}
-              id={each}
-              className="h-7 px-3 whitespace-nowrap">
-              {t(`agent.tabs.${each}`)}
-              {each === AgentTab.Proposals && awaiting > 0 ? (
-                <span className="ml-1 text-xs tabular-nums">{awaiting}</span>
-              ) : null}
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs.ListContainer>
-      {tab === AgentTab.Chat ? (
-        <div className="absolute top-0 right-0 flex h-11 items-center">
+      className="flex h-full flex-col gap-0">
+      {/* The pane's header holds its tabs, and the controls over which conversation while it shows. */}
+      <ColumnHeader className="gap-1 px-2">
+        {/* Too narrow for every tab, as beside the window's controls on Windows, the tabs scroll sideways. */}
+        <Tabs.ListContainer className="min-w-0">
+          <Tabs.List aria-label={t("agent.title")}>
+            {Object.values(AgentTab).map((each: AgentTab) => (
+              // HeroUI shares the row out evenly, which would break a label with a count between
+              // its characters; one that needs more room takes it from the others.
+              <Tabs.Tab key={each} id={each} className={SEGMENT}>
+                {t(`agent.tabs.${each}`)}
+                {each === AgentTab.Proposals && awaiting > 0 ? (
+                  <span className="ml-1 text-xs tabular-nums">{awaiting}</span>
+                ) : null}
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
+        {tab === AgentTab.Chat ? (
           <AgentSessionControls sessionId={sessionId} />
-        </div>
-      ) : null}
-      <Tabs.Panel id={AgentTab.Chat} className="min-h-0 flex-1 p-0">
+        ) : null}
+      </ColumnHeader>
+      <Tabs.Panel id={AgentTab.Chat} className="min-h-0 flex-1 px-2 pt-0 pb-2">
         <AgentChat sessionId={sessionId} />
       </Tabs.Panel>
       <Tabs.Panel id={AgentTab.Proposals} className={PANEL}>

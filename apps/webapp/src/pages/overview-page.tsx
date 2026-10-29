@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Tabs } from "@heroui/react";
+import { Tabs, cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -16,6 +16,7 @@ import { LoadingState } from "../components/loading-state.tsx";
 import { MarketFilter } from "../components/market-filter.tsx";
 import { Page } from "../components/page.tsx";
 import { Section } from "../components/section.tsx";
+import { SEGMENT } from "../components/segment.ts";
 import { AccountSummary } from "../modules/account/account-summary.tsx";
 import { TradeReview } from "../modules/account/trade-review.tsx";
 import { CALENDAR_DAYS } from "../modules/calendar/calendar-query.ts";
@@ -274,14 +275,17 @@ export function OverviewPage() {
           });
         }
       }}
-      className="gap-0">
+      className="h-full gap-0">
       <Page
         title={t("nav.overview")}
         header={
           <Tabs.ListContainer>
             <Tabs.List aria-label={t("nav.overview")}>
               {Object.values(OverviewTab).map((each) => (
-                <Tabs.Tab key={each} id={each} className="h-7 w-auto px-3">
+                <Tabs.Tab
+                  key={each}
+                  id={each}
+                  className={cn(SEGMENT, "w-auto")}>
                   {t(`overview.tabs.${each}`)}
                   <Tabs.Indicator />
                 </Tabs.Tab>

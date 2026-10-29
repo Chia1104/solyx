@@ -32,8 +32,9 @@ const KEYS: Record<SplitterOrientation, { back: string; forward: string }> = {
 };
 
 /**
- * The gap between a pane and the view beside it, which the pane keeps along that edge, dragged
- * or moved with the arrow keys. A drag previews sizes without rendering and commits once on release.
+ * The edge between a pane and the view beside it, the gap between sheets or the rule between
+ * columns, dragged or moved with the arrow keys. A drag previews sizes without rendering and
+ * commits once on release.
  */
 export function PaneSplitter({
   orientation = SplitterOrientation.Vertical,
@@ -46,6 +47,7 @@ export function PaneSplitter({
   onPreview,
   onCommit,
   onReset,
+  className,
 }: {
   /** @default SplitterOrientation.Vertical */
   orientation?: SplitterOrientation;
@@ -61,6 +63,8 @@ export function PaneSplitter({
   onPreview: (size: number) => void;
   onCommit: (size: number) => void;
   onReset: () => void;
+  /** Places it otherwise than over the pane's own edge, such as across a rule. */
+  className?: string;
 }) {
   const drag = useRef<{
     start: number;
@@ -116,12 +120,14 @@ export function PaneSplitter({
       aria-valuemax={maxSize()}
       aria-valuenow={size}
       className={cn(
-        "group absolute z-20 flex touch-none outline-none",
+        // In the window's top row it still resizes rather than moving the window.
+        "group absolute z-20 flex touch-none outline-none [-webkit-app-region:no-drag]",
         vertical
           ? "inset-y-0 w-2 cursor-col-resize justify-center"
           : "inset-x-0 h-2 cursor-row-resize items-center",
         vertical && (edge === SplitterEdge.Start ? "right-0" : "left-0"),
-        !vertical && (edge === SplitterEdge.Start ? "bottom-0" : "top-0")
+        !vertical && (edge === SplitterEdge.Start ? "bottom-0" : "top-0"),
+        className
       )}
       onPointerDown={(event) => {
         if (event.button !== 0) return;

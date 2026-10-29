@@ -10,7 +10,22 @@
     "agent": "Agent",
     "toggle": "顯示或隱藏{{pane}}",
     "pin": "固定{{pane}}",
-    "resize": "調整{{pane}}寬度"
+    "resize": "調整{{pane}}寬度",
+    "categories": "分類",
+    "category-menu": "分類選項",
+    "category-icon": "圖示",
+    "category-icons": {
+      "dot": "圓點",
+      "star": "星星",
+      "chart": "走勢",
+      "briefcase": "公事包",
+      "globe": "地球",
+      "flag": "旗子",
+      "flame": "火焰",
+      "bookmark": "書籤",
+      "rocket": "火箭",
+      "diamond": "鑽石"
+    }
   },
   "overview": {
     "tabs": {

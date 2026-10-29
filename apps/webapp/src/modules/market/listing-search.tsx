@@ -29,7 +29,7 @@ interface Found {
   name: string | undefined;
 }
 
-/** Where the title bar's search sits: it opens the search over the page. */
+/** Where the symbols pane's search sits: it opens the search over the page. */
 export function ListingSearchButton({ hotkey }: { hotkey: Hotkey }) {
   const { t } = useTranslation();
   const open = useListingSearchStore((state) => state.open);
@@ -37,7 +37,7 @@ export function ListingSearchButton({ hotkey }: { hotkey: Hotkey }) {
   return (
     <Button
       aria-label={t("search.title")}
-      className="flex h-9 w-56 items-center gap-2 rounded-field bg-field px-3 text-sm text-field-placeholder shadow-field outline-none hover:bg-field-hover focus-visible:status-focused-field"
+      className="flex h-8 w-full items-center gap-2 rounded-field bg-field px-3 text-sm text-field-placeholder shadow-field outline-none hover:bg-field-hover focus-visible:status-focused-field"
       onPress={open}>
       <Icon icon={Search01Icon} />
       <span className="flex-1 truncate text-left">{t("search.trigger")}</span>

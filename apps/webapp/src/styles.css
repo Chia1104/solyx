@@ -6,12 +6,11 @@
 @source "../node_modules/streamdown/dist/*.js";
 
 /*
- * Solyx is drawn like a drafting table: the window is the table, the page is a board on it,
- * and what the page shows lies on sheets on the board. Agents draft in pencil and the user
- * signs in ink. Pencil (hatching, dashed rules)
- * marks what is not real yet, such as paper trading or a proposal awaiting confirmation; ink
- * (the accent) marks what is. The palette itself comes from `@solyx/api/palette`, which
- * app/theme.ts writes as custom properties; these derive from it.
+ * Solyx is drawn like a drafting table: the window is the table, ruled into columns, and what
+ * each column shows lies on sheets on it. Agents draft in pencil and the user signs in ink.
+ * Pencil (hatching, dashed rules) marks what is not real yet, such as paper trading or a
+ * proposal awaiting confirmation; ink (the accent) marks what is. The palette itself comes from
+ * `@solyx/api/palette`, which app/theme.ts writes as custom properties; these derive from it.
  */
 :root,
 .light,
@@ -31,6 +30,21 @@
   --floating-shadow: var(--overlay-shadow);
 
   --radius: 0.375rem;
+}
+
+/*
+ * What the window's own controls take at each end of its top row (the traffic lights on macOS,
+ * the buttons Windows and Linux draw), and how far the columns at the window's ends keep their
+ * headers' text from its edges: past those and the pane toggles beside them (`WindowControls`,
+ * 68px and 36px), a header's 12px gap beyond, less the 16px every header insets its text anyway.
+ */
+:root {
+  --window-start: env(titlebar-area-x, 0px);
+  --window-end: calc(
+    100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)
+  );
+  --chrome-start: calc(var(--window-start) + 4rem);
+  --chrome-end: calc(var(--window-end) + 2rem);
 }
 
 .dark,
@@ -58,7 +72,7 @@ html:not([data-palette]) body {
 /*
  * One corner radius for controls and what sits inside a sheet, instead of HeroUI's scale up to
  * pills; form fields keep HeroUI's own. Only a sheet rounds wider, and what holds sheets a gap
- * inside its edge (the board, a pane floating over it, the composer) wider by that gap, so their
+ * inside its edge (a pane floating over the page, the composer) wider by that gap, so their
  * corners nest.
  */
 @theme inline {
@@ -71,12 +85,10 @@ html:not([data-palette]) body {
   --radius-3xl: var(--radius);
   --radius-4xl: var(--radius);
   --radius-sheet: 0.625rem;
-  --radius-board: 1.125rem;
+  --radius-tray: 1.125rem;
 }
 
 @theme inline {
-  /* The window's own colour, which app/theme.ts writes beside the palette and the window paints too. */
-  --color-table: var(--table);
   --color-hatch: var(--hatch);
   --color-quote-red: var(--quote-red);
   --color-quote-green: var(--quote-green);
@@ -98,7 +110,7 @@ html:not([data-palette]) body {
 }
 
 /*
- * A sheet on the board: no shadow, since it lies flat, and an edge drawn inside it, so a view
+ * A sheet on the table: no shadow, since it lies flat, and an edge drawn inside it, so a view
  * that clips its overflow never cuts the edge off.
  */
 @utility sheet {
@@ -112,17 +124,29 @@ html:not([data-palette]) body {
   @apply rounded-sm bg-surface-secondary;
 }
 
-/* The board the page lies on, between the side panes: a shade over the table and under its sheets. */
-@utility board {
-  @apply rounded-board bg-background;
-  outline: 1px solid var(--sheet-edge);
-  outline-offset: -1px;
+/*
+ * A pane lifted over the page, as a closed one shows while the pointer rests on it, on a paler
+ * ground than the sheets it passes over; its header moves nothing.
+ */
+@utility floating {
+  @apply rounded-tray bg-surface-secondary;
+  box-shadow: var(--floating-shadow);
+  /* Fields on it take the sheets' colour, which by night a field's own would match the ground. */
+  --field-background: var(--surface);
+  --color-field: var(--surface);
+
+  & .app-drag {
+    -webkit-app-region: no-drag;
+  }
 }
 
-/* A pane lifted over the board, as a closed one shows while the pointer rests on it. */
-@utility floating {
-  @apply rounded-board bg-overlay;
-  box-shadow: var(--floating-shadow);
+/* The band under every column's header: pencil hatching while orders are paper, a solid ink line once they are real. */
+@utility broker-rule {
+  @apply h-1.5 hatch;
+
+  [data-broker-mode="live"] & {
+    @apply h-0.5 bg-accent bg-none;
+  }
 }
 
 /*
@@ -152,14 +176,14 @@ html:not([data-palette]) body {
 @utility app-drag {
   -webkit-app-region: drag;
 
-  & :is(a, button, input, [role="button"], [role="separator"]) {
+  & :is(a, button, input, [role="button"], [role="tab"], [role="separator"]) {
     -webkit-app-region: no-drag;
   }
 }
 
 /*
  * Moving to another kind of page crossfades the main view and settles the new page into place;
- * the title bar and side panes around it stay still. Reduced motion keeps the fade, not the move.
+ * the side panes around it stay still. Reduced motion keeps the fade, not the move.
  */
 ::view-transition-old(root),
 ::view-transition-new(root) {
@@ -194,6 +218,21 @@ html:not([data-palette]) body {
   from {
     opacity: 0;
     transform: translateY(4px);
+  }
+}
+
+/* A watchlist category picked slides in from the side its dot lies on. */
+@keyframes category-in-from-end {
+  from {
+    opacity: 0;
+    translate: 1.5rem 0;
+  }
+}
+
+@keyframes category-in-from-start {
+  from {
+    opacity: 0;
+    translate: -1.5rem 0;
   }
 }
 
