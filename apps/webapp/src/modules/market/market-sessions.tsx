@@ -15,7 +15,7 @@ const SESSION_MARK: Record<Session, string> = {
   [Session.Closed]: "border border-muted",
 };
 
-/** Each market's current session, compact enough for the symbols pane's foot. */
+/** Each market's current session, compact enough for the status bar. */
 export function MarketSessions() {
   const { t } = useTranslation();
   const { data } = useQuery(marketSessionsQuery());

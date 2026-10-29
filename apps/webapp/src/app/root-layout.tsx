@@ -32,6 +32,7 @@ import {
 } from "./pane-peek.ts";
 import { useHeldPane, useLastPage, useSettingsOpen } from "./settings-open.ts";
 import { SettingsPane } from "./settings-pane.tsx";
+import { StatusBar } from "./status-bar.tsx";
 import { SymbolsPaneFoot } from "./symbols-pane-foot.tsx";
 import { SymbolsPane } from "./symbols-pane.tsx";
 import { WindowControls } from "./window-controls.tsx";
@@ -226,7 +227,7 @@ function SymbolsPaneViews() {
 
 /**
  * The routed main view between the side panes, each column ruled off from the next and opening
- * with its header, which together make the window's top row.
+ * with its header, which together make the window's top row, over the status bar.
  */
 function Workspace() {
   const { t } = useTranslation();
@@ -251,11 +252,11 @@ function Workspace() {
   };
 
   return (
-    <div className="relative h-dvh overflow-hidden text-sm">
+    <div className="relative flex h-dvh flex-col overflow-hidden text-sm">
       <ListingSearchDialog />
       <div
         ref={workspace}
-        className="relative grid h-full transition-[grid-template-columns] duration-200 ease-out-quint motion-reduce:transition-none [html[data-pane-at-once]_&]:transition-none [html[data-pane-resizing]_&]:transition-none"
+        className="relative grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out-quint motion-reduce:transition-none [html[data-pane-at-once]_&]:transition-none [html[data-pane-resizing]_&]:transition-none"
         style={{
           ...widths,
           gridTemplateColumns: `${column(Pane.Symbols)} minmax(0, 1fr) ${column(Pane.Agent)}`,
@@ -287,6 +288,7 @@ function Workspace() {
           shown[pane] ? null : <PaneEdge key={pane} pane={pane} />
         )}
       </div>
+      <StatusBar />
       <WindowControls />
     </div>
   );

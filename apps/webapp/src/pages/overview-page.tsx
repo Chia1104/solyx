@@ -274,7 +274,7 @@ export function OverviewPage() {
           });
         }
       }}
-      className="gap-0">
+      className="h-full gap-0">
       <Page
         title={t("nav.overview")}
         header={

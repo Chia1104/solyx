@@ -10,7 +10,8 @@
     "agent": "Agent",
     "toggle": "顯示或隱藏{{pane}}",
     "pin": "固定{{pane}}",
-    "resize": "調整{{pane}}寬度"
+    "resize": "調整{{pane}}寬度",
+    "categories": "分類"
   },
   "overview": {
     "tabs": {

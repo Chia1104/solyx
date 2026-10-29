@@ -124,10 +124,16 @@ html:not([data-palette]) body {
   @apply rounded-sm bg-surface-secondary;
 }
 
-/* A pane lifted over the page, as a closed one shows while the pointer rests on it; its header moves nothing. */
+/*
+ * A pane lifted over the page, as a closed one shows while the pointer rests on it, on a paler
+ * ground than the sheets it passes over; its header moves nothing.
+ */
 @utility floating {
-  @apply rounded-tray bg-overlay;
+  @apply rounded-tray bg-surface-secondary;
   box-shadow: var(--floating-shadow);
+  /* Fields on it take the sheets' colour, which by night a field's own would match the ground. */
+  --field-background: var(--surface);
+  --color-field: var(--surface);
 
   & .app-drag {
     -webkit-app-region: no-drag;
@@ -212,6 +218,21 @@ html:not([data-palette]) body {
   from {
     opacity: 0;
     transform: translateY(4px);
+  }
+}
+
+/* A watchlist category picked slides in from the side its dot lies on. */
+@keyframes category-in-from-end {
+  from {
+    opacity: 0;
+    translate: 1.5rem 0;
+  }
+}
+
+@keyframes category-in-from-start {
+  from {
+    opacity: 0;
+    translate: -1.5rem 0;
   }
 }
 
