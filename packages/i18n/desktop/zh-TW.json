@@ -2592,7 +2592,9 @@
   "app": {
     "backend-stopped": {
       "title": "Solyx 意外停止",
-      "body": "Solyx 負責保存資料與執行工作的部分停止了，因此 Solyx 會結束。重新開啟即可繼續。"
+      "body": "Solyx 負責保存資料與執行工作的部分停止了，因此 Solyx 會結束。重新開啟即可繼續。",
+      "ended": "結束代碼 {{ending}}",
+      "record": "這次的紀錄不含你的資料，保存在 {{file}}。"
     }
   },
   "tray": {

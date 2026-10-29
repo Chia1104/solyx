@@ -2592,7 +2592,9 @@
   "app": {
     "backend-stopped": {
       "title": "Solyx stopped unexpectedly",
-      "body": "The part of Solyx that keeps your data and runs your work stopped, so Solyx quits. Open it again to go on."
+      "body": "The part of Solyx that keeps your data and runs your work stopped, so Solyx quits. Open it again to go on.",
+      "ended": "Exit code {{ending}}",
+      "record": "A record of it, free of your data, is in {{file}}."
     }
   },
   "tray": {
