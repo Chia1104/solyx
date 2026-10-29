@@ -1,3 +1,4 @@
+import { HISTORY_YEARS } from "@solyx/core/candles";
 import { peerStanding } from "@solyx/core/fundamentals";
 import type {
   ExchangeListsProvider,
@@ -19,6 +20,9 @@ const STATEMENT_YEARS = 5;
 const SHEET_YEARS = 3;
 
 const REVENUE_MONTHS = 36;
+
+// As far back as a backtest reads daily bars, so each session it holds through has its cash.
+const DISTRIBUTION_YEARS = HISTORY_YEARS;
 
 // A quarter or a month is published once, so a listing is asked about twice a day at most.
 const FRESH_MS = 12 * HOUR_MS;
@@ -238,7 +242,7 @@ export function createFundamentals({
     dividends: fresh("dividends", (provider, symbol, today) =>
       provider.getDividends(
         symbol,
-        today.subtract({ years: STATEMENT_YEARS }).toString()
+        today.subtract({ years: DISTRIBUTION_YEARS }).toString()
       )
     ),
 

@@ -325,14 +325,6 @@ export function createServices(config: ConfigFile, host: Host) {
     onChange: () => void windowEvents.publish("strategies:changed", {}),
   });
 
-  const backtests = createBacktests({
-    marketData,
-    kernel,
-    history: userData.backtestRuns,
-    strategies,
-    onHistoryChange: () => void windowEvents.publish("backtests:changed", {}),
-  });
-
   // The user's own skills and instructions sit beside the config file they edit.
   const skillFolders = {
     solyx: join(configDir, "skills"),
@@ -410,6 +402,19 @@ export function createServices(config: ConfigFile, host: Host) {
   });
 
   const flows = createFlows({ providers: [finMind], answers: cache.answers });
+
+  const backtests = createBacktests({
+    marketData: {
+      candles: (symbol, interval) => marketData.candles(symbol, interval),
+      candlesSince: (symbol, interval, since) =>
+        marketData.candlesSince(symbol, interval, since),
+      dividends: (symbol) => fundamentals.dividends(symbol),
+    },
+    kernel,
+    history: userData.backtestRuns,
+    strategies,
+    onHistoryChange: () => void windowEvents.publish("backtests:changed", {}),
+  });
 
   const rotations = createRotations({
     candlesBetween: (symbol, from, to) =>

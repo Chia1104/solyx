@@ -15,6 +15,7 @@ import {
 import type { BacktestOptions, RuleStrategy } from "@solyx/core/backtest";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
+import type { Dividend } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import {
@@ -62,6 +63,7 @@ function backtests(
     candlesSince: vi.fn(async (_symbol: SymbolRef, interval: Interval) =>
       read(interval)
     ),
+    dividends: vi.fn(async (): Promise<Dividend[]> => []),
   };
 
   const user = openUserData(
@@ -179,6 +181,42 @@ test("a run on bars shorter than a day reads the daily bars of the same years fo
     marketData.candlesSince.mock.calls.map(([, interval]) => interval)
   ).toEqual([Interval.OneMinute, Interval.OneDay]);
   expect(result.interval).toBe(Interval.OneMinute);
+});
+
+test("every mode of a run whose costs withhold tax from dividends reads the listing's distributions", async () => {
+  const { marketData, run } = backtests();
+  const strategy = initialSetup(StrategyTemplate.MovingAverageCross);
+  const { rows, columns } = STRATEGY_TEMPLATES[strategy.template].grid;
+  const costs = { dividendTaxRate: 0.3 };
+
+  await run.run(backtestSetupSchema.parse({ ...reach, strategy, split: 0.5 }));
+
+  expect(marketData.dividends).not.toHaveBeenCalled();
+
+  const result = await run.run(
+    backtestSetupSchema.parse({ ...reach, strategy, split: 0.5, costs })
+  );
+
+  await run.scan(
+    scanSetupSchema.parse({
+      ...reach,
+      strategy,
+      rows,
+      columns,
+      split: 0.5,
+      costs,
+    })
+  );
+  await run.walkForward(
+    walkForwardSetupSchema.parse({ ...reach, strategy, rows, columns, costs })
+  );
+  await run.rolling(
+    rollingSetupSchema.parse({ ...reach, strategy, months: 6, step: 1, costs })
+  );
+
+  expect(result.costs.dividendTaxRate).toBe(0.3);
+  expect(marketData.dividends).toHaveBeenCalledTimes(4);
+  expect(marketData.dividends).toHaveBeenCalledWith(TSMC);
 });
 
 test("a scan runs its grid's setups row by row, and a walk forward picks among them", async () => {

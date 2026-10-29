@@ -76,6 +76,9 @@ export function BacktestReport({
           tax: fine.format(result.costs.sellTaxRate),
           count: result.costs.slippageTicks,
         })}
+        {result.costs.dividendTaxRate > 0
+          ? ` · ${t("backtests.report.withheld", { rate: fine.format(result.costs.dividendTaxRate) })}`
+          : null}
       </p>
     </div>
   );

@@ -24,7 +24,7 @@ A rule can never see the bar it trades on.
 
 ## Prices
 
-Indicators, stops and the buy-and-hold comparison read [adjusted prices](/docs/data/market-data#as-traded-or-adjusted), rescaled to each bar's own terms, so a dividend never looks like a crash. Orders fill at the prices that actually traded, and shares held are scaled on a split or ex-dividend day. Bars shorter than a day take each session's reference from the daily bars.
+Indicators, stops and the buy-and-hold comparison read [adjusted prices](/docs/data/market-data#as-traded-or-adjusted), rescaled to each bar's own terms, so a dividend never looks like a crash. Orders fill at the prices that actually traded, and shares held are scaled on a split or ex-dividend day, the dividend bought back in less the [tax withheld](#costs) from it; stops and buy and hold take that tax off too. Bars shorter than a day take each session's reference from the daily bars.
 
 ## A strategy's own lines
 
@@ -51,18 +51,26 @@ To tell whether the code read later bars, the engine runs its first set of numbe
 
   </Tab>
   <Tab value="US">
-    No commission and no tax by default, with 1 tick of slippage.
+
+    | Cost              | Default                                                                       |
+    | ----------------- | ----------------------------------------------------------------------------- |
+    | Commission        | None, as at a broker that charges none                                        |
+    | Fee on sale       | The SEC's fee, 0.00206% ($20.60 a million)                                    |
+    | Dividend withheld | 30% of the cash, what the US withholds from a Taiwan resident, whom no treaty covers |
+    | Slippage          | 1 tick                                                                        |
+
   </Tab>
 </Tabs>
 
 $$
 \begin{aligned}
 \text{commission} &= \max(\text{rate} \times \text{value},\ \text{minimum}) \\
-\text{proceeds} &= \text{value} - \text{commission} - \text{value} \times \text{tax}
+\text{proceeds} &= \text{value} - \text{commission} - \text{value} \times \text{tax} \\
+\text{carried} &= \frac{\text{close before} - \text{withheld} \times \text{cash}}{\text{reference}}
 \end{aligned}
 $$
 
-Commission and tax rates can be set up to 1%. The starting capital is 1,000,000 unless set otherwise.
+A holding's shares are multiplied by $$\text{carried}$$ on the day it goes ex. Tax is withheld from no more cash than the reference made up for, so a payout the source's references miss is neither bought back in nor taxed. Commission and tax rates can be set up to 1%, and the share withheld up to all of it. The starting capital is 1,000,000 unless set otherwise.
 
 ## What it reports
 

@@ -23,7 +23,7 @@ description: 回測怎麼成交、怎麼計算成本、怎麼避免偷看未來�
 
 ## 價格 [#prices]
 
-技術指標、停損與買進持有的比較，讀的是[還原價](/zh-TW/docs/data/market-data#as-traded-or-adjusted)，並換算回每根 K 線自己的價格水準，所以除息永遠不會看起來像崩跌。委託以實際成交過的價格成交，持有股數會在分割或除權息日跟著調整。比日 K 短的 K 線，各交易日的參考價取自日 K。
+技術指標、停損與買進持有的比較，讀的是[還原價](/zh-TW/docs/data/market-data#as-traded-or-adjusted)，並換算回每根 K 線自己的價格水準，所以除息永遠不會看起來像崩跌。委託以實際成交過的價格成交，持有股數會在分割或除權息日跟著調整，股利扣掉[預扣的稅](#costs)後再買回；停損與買進持有也一樣扣掉這筆稅。比日 K 短的 K 線，各交易日的參考價取自日 K。
 
 ## 策略自己的線 [#a-strategys-own-lines]
 
@@ -49,17 +49,27 @@ description: 回測怎麼成交、怎麼計算成本、怎麼避免偷看未來�
     | 滑價   | 1 個跳動單位                                                 |
 
   </Tab>
-  <Tab value="美股">預設沒有手續費與稅，滑價 1 個跳動單位。</Tab>
+  <Tab value="美股">
+
+    | 成本     | 預設                                                       |
+    | -------- | ---------------------------------------------------------- |
+    | 手續費   | 不收，如同零手續費的券商                                   |
+    | 賣出規費 | SEC 規費 0.00206%（每百萬美元 20.60 美元）                 |
+    | 股利預扣 | 現金股利的 30%，美國對台灣居民的預扣稅率，兩地沒有租稅協定 |
+    | 滑價     | 1 個跳動單位                                               |
+
+  </Tab>
 </Tabs>
 
 $$
 \begin{aligned}
 \text{commission} &= \max(\text{rate} \times \text{value},\ \text{minimum}) \\
-\text{proceeds} &= \text{value} - \text{commission} - \text{value} \times \text{tax}
+\text{proceeds} &= \text{value} - \text{commission} - \text{value} \times \text{tax} \\
+\text{carried} &= \frac{\text{close before} - \text{withheld} \times \text{cash}}{\text{reference}}
 \end{aligned}
 $$
 
-手續費率與稅率最高可設到 1%。起始資金預設為 1,000,000，可另行設定。
+除息日當天，持有股數乘上 $$\text{carried}$$。預扣的稅只從參考價反映到的現金扣，所以資料來源的參考價沒反映到的股利，既不買回也不扣稅。手續費率與稅率最高可設到 1%，股利預扣最高可設到 100%。起始資金預設為 1,000,000，可另行設定。
 
 ## 回報的數字 [#what-it-reports]
 

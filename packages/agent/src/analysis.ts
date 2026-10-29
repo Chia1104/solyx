@@ -22,7 +22,11 @@ import {
   tradeCostsSchema,
   walkForward,
 } from "@solyx/core/backtest";
-import type { BacktestBarsSource, BacktestKernel } from "@solyx/core/backtest";
+import type {
+  BacktestBarsSource,
+  BacktestKernel,
+  TradeCosts,
+} from "@solyx/core/backtest";
 import {
   HISTORY_YEARS,
   INTRADAY_HISTORY_YEARS,
@@ -354,7 +358,7 @@ export const BACKTEST_TYPES = [
   'type Series = { price: "open" | "high" | "low" | "close" | "volume" } | { value: number } | { sma: number } | { ema: number } | { rsi: number } | { bollinger: number; band: "upper" | "middle" | "lower"; width?: number } | { macd: "macd" | "signal" | "histogram" } | { kd: "k" | "d" } | { highest: number } | { lowest: number };',
   "type Condition = { above: [Series, Series] } | { below: [Series, Series] } | { crossesAbove: [Series, Series] } | { crossesBelow: [Series, Series] } | { all: Condition[] } | { any: Condition[] };",
   "type Strategy = { entry: Condition; exit: Condition; stopLoss?: number; takeProfit?: number };",
-  "type Costs = { commissionRate: number; minCommission: number; sellTaxRate: number; slippageTicks: number };",
+  "type Costs = { commissionRate: number; minCommission: number; sellTaxRate: number; dividendTaxRate: number; slippageTicks: number };",
   "type Metrics = { from: string; to: string; totalReturn: number; annualReturn: number | null; maxDrawdown: number; sharpe: number | null; pValue: number | null; trades: number; winRate: number | null; payoffRatio: number | null; exposure: number; buyAndHold: number; buyAndHoldDrawdown: number };",
   "type Trade = { entryTime: string; entryPrice: number; exitTime: string | null; exitPrice: number; shares: number; profit: number; return: number; bars: number };",
   "type Backtest = { interval: Interval; bars: number; capital: number; costs: Costs; trades: Trade[]; equity: { date: string; value: number }[]; all: Metrics; inSample: Metrics | null; outOfSample: Metrics | null };",
@@ -400,6 +404,25 @@ function historyReader(
   };
 }
 
+/** A listing's bars as a backtest reads them from `source`, and `options` with what a run reads beside them. */
+async function listingRun<Options extends { costs?: Partial<TradeCosts> }>(
+  source: BacktestBarsSource,
+  symbol: SymbolRef,
+  interval: Interval,
+  since: string | undefined,
+  options: Options
+) {
+  const { bars, daily, dividends } = await backtestBars(
+    source,
+    symbol,
+    interval,
+    since,
+    options.costs
+  );
+
+  return { bars, daily, options: { ...options, interval, daily, dividends } };
+}
+
 /**
  * The app's backtest over bars it reads itself, so a strategy's fills and costs follow its rules,
  * on the listing's own bars, rather than a script's arithmetic or bars a script made.
@@ -414,13 +437,8 @@ const backtests = (
   const source: BacktestBarsSource = {
     candles: (symbol, interval) => ports.marketData.candles(symbol, interval),
     candlesSince: history,
+    dividends: (symbol) => ports.fundamentals.dividends(symbol),
   };
-
-  const listingBars = (
-    symbol: SymbolRef,
-    interval: Interval,
-    since: string | undefined
-  ) => backtestBars(source, symbol, interval, since);
 
   const strategiesSchema = z
     .array(ruleStrategySchema)
@@ -454,7 +472,7 @@ const backtests = (
   return [
     scriptFunction({
       name: "backtest.rules",
-      description: `Runs a long-only strategy over a listing's bars, which it reads itself: interval's bars, daily unless named, over the app's own history as tools.candles returns them, or from since on. since reaches back up to ${HISTORY_YEARS} years on daily and longer bars and ${INTRADAY_HISTORY_YEARS} on shorter ones, an earlier one reading from there, as far as the source keeps them, for the few listings a script tools.candles' since allows; a run takes ${BACKTEST_BARS} bars at most. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have, and a session's first bar fills after the gap from the close before: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules, stops, buyAndHold and buyAndHoldDrawdown read prices with splits and what went ex made up for from the sessions' references, which bars shorter than a day take from the daily bars; orders fill at prices as traded, and what goes ex while held is bought back in, so a trade's shares are those bought. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way, on every trade however often it trades; a US trade pays only the slippage. A Taiwan bar locked at its limit fills nothing: a daily bar that traded at one price away from its reference, a shorter one that traded at one price, its session's limit. split, a YYYY-MM-DD or a share of the sessions such as 2/3, measures the sessions before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. A trade's times are its bars' times, and equity is the account at each session's close. sharpe is of the account's session returns, a year's worth at their pace. pValue is how often the stretch's bars put in a random order did as well as the rules' timing did on them, of ${BACKTEST_PERMUTATIONS} orders held as the run held and charged its costs: below 0.05 the timing beat chance, and it says nothing of whether holding the listing at all paid.`,
+      description: `Runs a long-only strategy over a listing's bars, which it reads itself: interval's bars, daily unless named, over the app's own history as tools.candles returns them, or from since on. since reaches back up to ${HISTORY_YEARS} years on daily and longer bars and ${INTRADAY_HISTORY_YEARS} on shorter ones, an earlier one reading from there, as far as the source keeps them, for the few listings a script tools.candles' since allows; a run takes ${BACKTEST_BARS} bars at most. Its rules are read at each bar's close from that bar and the ones before it, and acted on at the next bar's open, so no decision sees a price it could not have, and a session's first bar fills after the gap from the close before: series warm up as null, and a rule on a null holds nowhere. highest and lowest read the bars before the one ruled on. A buy spends the account on whole shares and a sale sells them all; stopLoss and takeProfit are fractions from the price paid, read on closes. Rules read prices with splits and what went ex made up for from the sessions' references, which bars shorter than a day take from the daily bars; orders fill at prices as traded, and what goes ex while held is bought back in, less dividendTaxRate of its cash, so a trade's shares are those bought; stops, buyAndHold and buyAndHoldDrawdown read prices carried over as the holding is, so holding pays that tax too. Costs default to a Taiwan broker's full commission (0.1425%, at least 20 TWD), the securities transaction tax on sales (0.3%, 0.1% for funds) and a tick of slippage each way, on every trade however often it trades; a US trade pays no commission, as at a broker that charges none, the SEC's fee on sales (0.00206%) and the slippage, and 30% of a US listing's dividends is withheld, as from a Taiwan resident's. A Taiwan bar locked at its limit fills nothing: a daily bar that traded at one price away from its reference, a shorter one that traded at one price, its session's limit. split, a YYYY-MM-DD or a share of the sessions such as 2/3, measures the sessions before it as in-sample and those from it as out-of-sample. Capital defaults to 1,000,000 in the market's currency. A trade's times are its bars' times, and equity is the account at each session's close. sharpe is of the account's session returns, a year's worth at their pace. pValue is how often the stretch's bars put in a random order did as well as the rules' timing did on them, of ${BACKTEST_PERMUTATIONS} orders held as the run held and charged its costs: below 0.05 the timing beat chance, and it says nothing of whether holding the listing at all paid.`,
       spread: true,
       signature:
         "(input: { symbol: SymbolRef; interval?: Interval; since?: string; strategy: Strategy; capital?: number; costs?: Partial<Costs>; split?: string | number }): Promise<Backtest>",
@@ -473,13 +491,15 @@ const backtests = (
       async run([
         { symbol, interval = Interval.OneDay, since, strategy, ...options },
       ]) {
-        const { bars, daily } = await listingBars(symbol, interval, since);
+        const run = await listingRun(source, symbol, interval, since, options);
 
-        const result = await backtest(kernel, symbol, bars, strategy, {
-          ...options,
-          interval,
-          daily,
-        });
+        const result = await backtest(
+          kernel,
+          symbol,
+          run.bars,
+          strategy,
+          run.options
+        );
 
         onRan({ symbol, interval, since, strategy, ...options });
 
@@ -508,13 +528,9 @@ const backtests = (
       async run([
         { symbol, interval = Interval.OneDay, since, strategies, ...options },
       ]) {
-        const { bars, daily } = await listingBars(symbol, interval, since);
+        const run = await listingRun(source, symbol, interval, since, options);
 
-        return scanBacktests(kernel, symbol, bars, strategies, {
-          ...options,
-          interval,
-          daily,
-        });
+        return scanBacktests(kernel, symbol, run.bars, strategies, run.options);
       },
     }),
     scriptFunction({
@@ -542,13 +558,9 @@ const backtests = (
       async run([
         { symbol, interval = Interval.OneDay, since, strategies, ...options },
       ]) {
-        const { bars, daily } = await listingBars(symbol, interval, since);
+        const run = await listingRun(source, symbol, interval, since, options);
 
-        return walkForward(kernel, symbol, bars, strategies, {
-          ...options,
-          interval,
-          daily,
-        });
+        return walkForward(kernel, symbol, run.bars, strategies, run.options);
       },
     }),
     scriptFunction({
@@ -584,17 +596,13 @@ const backtests = (
       async run([
         { symbol, interval = Interval.OneDay, since, strategy, ...options },
       ]) {
-        const { bars, daily } = await listingBars(symbol, interval, since);
+        const run = await listingRun(source, symbol, interval, since, options);
 
-        return rollingBacktest(kernel, symbol, bars, strategy, {
-          ...options,
-          interval,
-          daily,
-        });
+        return rollingBacktest(kernel, symbol, run.bars, strategy, run.options);
       },
     }),
     ...(ports.strategies
-      ? strategyBacktests(ports.strategies, kernel, listingBars, {
+      ? strategyBacktests(ports.strategies, kernel, source, {
           columnsSchema,
           sessionsSchema,
           splitSchema,
@@ -623,11 +631,7 @@ interface Shared {
 function strategyBacktests(
   strategies: Pick<StrategiesPort, "lines">,
   kernel: BacktestKernel,
-  listingBars: (
-    symbol: SymbolRef,
-    interval: Interval,
-    since: string | undefined
-  ) => ReturnType<typeof backtestBars>,
+  source: BacktestBarsSource,
   { columnsSchema, sessionsSchema, splitSchema, reading }: Shared
 ): CodemodeTool[] {
   const listed = {
@@ -642,8 +646,8 @@ function strategyBacktests(
     .min(1)
     .max(MAX_SCAN_STRATEGIES);
 
-  /** The bars and what the strategy's code worked out over them for each of `params`. */
-  async function worked(
+  /** The bars, `options` with what a run reads beside them, and what the strategy's code worked out over the bars for each of `params`. */
+  async function worked<Options extends { costs?: Partial<TradeCosts> }>(
     {
       strategy,
       symbol,
@@ -655,19 +659,20 @@ function strategyBacktests(
       interval?: Interval;
       since?: string;
     },
-    params: Record<string, number>[]
+    params: Record<string, number>[],
+    options: Options
   ) {
-    const { bars, daily } = await listingBars(symbol, interval, since);
+    const run = await listingRun(source, symbol, interval, since, options);
 
     const lines = await strategies.lines(
       strategy,
       symbol,
-      bars,
-      { interval, daily },
+      run.bars,
+      { interval, daily: run.daily },
       params
     );
 
-    return { bars, daily, interval, ...lines };
+    return { ...run, interval, ...lines };
   }
 
   const own = `it ${reading}, and has the strategy's code work its lines out over them for each set of numbers, those not given at their initial values; params says them all. The engine trades the strategy's rules on those lines, its fills and costs as backtest.rules has them. A version of the strategy's files runs only once allowed. lookAhead names a line and the time of the first bar where the code read bars after the one it worked a value out for, which leaves every figure resting on prices it could not have known; null where it did not`;
@@ -696,9 +701,11 @@ function strategyBacktests(
         lookAhead: lookAheadSchema,
       }),
       async run([{ strategy, symbol, interval, since, params }]) {
-        const run = await worked({ strategy, symbol, interval, since }, [
-          params ?? {},
-        ]);
+        const run = await worked(
+          { strategy, symbol, interval, since },
+          [params ?? {}],
+          {}
+        );
 
         const handed = strategyBars(symbol, run.bars, {
           interval: run.interval,
@@ -733,14 +740,14 @@ function strategyBacktests(
         lookAhead: lookAheadSchema,
       }),
       async run([{ strategy, symbol, interval, since, params, ...options }]) {
-        const run = await worked({ strategy, symbol, interval, since }, [
-          params ?? {},
-        ]);
+        const run = await worked(
+          { strategy, symbol, interval, since },
+          [params ?? {}],
+          options
+        );
 
         const result = await backtest(kernel, symbol, run.bars, run.rules, {
-          ...options,
-          interval: run.interval,
-          daily: run.daily,
+          ...run.options,
           lines: run.lines[0],
         });
 
@@ -768,19 +775,18 @@ function strategyBacktests(
         lookAhead: lookAheadSchema,
       }),
       async run([{ strategy, symbol, interval, since, params, ...options }]) {
-        const run = await worked({ strategy, symbol, interval, since }, params);
+        const run = await worked(
+          { strategy, symbol, interval, since },
+          params,
+          options
+        );
 
         const scan = await scanBacktests(
           kernel,
           symbol,
           run.bars,
           run.params.map(() => run.rules),
-          {
-            ...options,
-            interval: run.interval,
-            daily: run.daily,
-            lines: run.lines,
-          }
+          { ...run.options, lines: run.lines }
         );
 
         return { ...scan, params: run.params, lookAhead: run.lookAhead };
@@ -810,19 +816,18 @@ function strategyBacktests(
         lookAhead: lookAheadSchema,
       }),
       async run([{ strategy, symbol, interval, since, params, ...options }]) {
-        const run = await worked({ strategy, symbol, interval, since }, params);
+        const run = await worked(
+          { strategy, symbol, interval, since },
+          params,
+          options
+        );
 
         const walked = await walkForward(
           kernel,
           symbol,
           run.bars,
           run.params.map(() => run.rules),
-          {
-            ...options,
-            interval: run.interval,
-            daily: run.daily,
-            lines: run.lines,
-          }
+          { ...run.options, lines: run.lines }
         );
 
         return { ...walked, params: run.params, lookAhead: run.lookAhead };
@@ -853,9 +858,11 @@ function strategyBacktests(
         lookAhead: lookAheadSchema,
       }),
       async run([{ strategy, symbol, interval, since, params, ...options }]) {
-        const run = await worked({ strategy, symbol, interval, since }, [
-          params ?? {},
-        ]);
+        const run = await worked(
+          { strategy, symbol, interval, since },
+          [params ?? {}],
+          options
+        );
 
         const rolled = await rollingBacktest(
           kernel,
@@ -863,9 +870,7 @@ function strategyBacktests(
           run.bars,
           run.rules,
           {
-            ...options,
-            interval: run.interval,
-            daily: run.daily,
+            ...run.options,
             lines: run.lines[0],
           }
         );
@@ -891,15 +896,13 @@ function strategyBacktests(
         lookAhead: lookAheadSchema,
       }),
       async run([{ strategy, symbol, interval, since, params }]) {
-        const run = await worked({ strategy, symbol, interval, since }, [
-          params ?? {},
-        ]);
+        const run = await worked(
+          { strategy, symbol, interval, since },
+          [params ?? {}],
+          {}
+        );
 
-        const bars = {
-          interval: run.interval,
-          daily: run.daily,
-          lines: run.lines[0],
-        };
+        const bars = { ...run.options, lines: run.lines[0] };
 
         const result = await backtest(
           kernel,
