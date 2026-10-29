@@ -9,11 +9,7 @@ import {
   netBuying,
 } from "@solyx/core/flows";
 import type { Flows } from "@solyx/core/flows";
-import {
-  cashGoneExBy,
-  revenueTrend,
-  statementMetrics,
-} from "@solyx/core/fundamentals";
+import { revenueTrend, statementMetrics } from "@solyx/core/fundamentals";
 import type { Fundamentals } from "@solyx/core/fundamentals";
 import {
   Market,
@@ -338,23 +334,6 @@ export function sourceFunctions(
       input: listing,
       output: companySchema.nullable(),
       run: ([symbol]) => sources.fundamentals.company(symbol),
-    }),
-    scriptFunction({
-      name: "fundamentals.cashGoneEx",
-      description:
-        "For each daily bar, the cash a share that went ex after the first bar through it, from fundamentals.dividends. Bars are prices as traded, so a return from bar i to a later bar j is (close[j] + cash[j] - cash[i]) / close[i], as the app judges a forecast; without it a dividend reads as a loss. Stock distributed and splits are not made up for. Reads nothing.",
-      spread: true,
-      signature: "(bars: Bar[], dividends: Dividend[]): Promise<number[]>",
-      input: z.tuple([
-        z.array(z.object({ time: z.string() })),
-        dividendsSchema,
-      ]),
-      output: z.array(z.number()),
-      run: ([bars, dividends]) =>
-        cashGoneExBy(
-          bars.map((bar) => bar.time),
-          dividends
-        ),
     }),
     scriptFunction({
       name: "fundamentals.dividends",

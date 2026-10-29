@@ -58,8 +58,9 @@ A base rate is how often the listing's own history would have landed in a band:
 <Steps>
   <Step>
     Take every move over the forecast's horizon in the daily bars Solyx holds,
-    about two years: $$\text{close}_{t + h} \div \text{close}_t$$. Cash
-    dividends that went ex within each stretch are added back.
+    about two years: $$\text{close}_{t + h} \div \text{close}_t$$, on prices
+    adjusted from the exchange's reference prices, so a dividend, a split or a
+    capital reduction within the stretch is no move.
   </Step>
   <Step>Apply each move to the anchor price.</Step>
   <Step>Count the share that lands in each band.</Step>
@@ -71,8 +72,8 @@ Fewer than 60 moves give no base rate. The agent also reads the 10th, 25th, 50th
 
 A forecast settles after the regular close of the session `h` daily bars after its anchor.
 
-- **Ex-dividend days.** Cash dividends that went ex after the anchor are added back to the bars before judging, so a dividend does not count as a fall. Stock dividends and splits are not adjusted. The record keeps the raw close beside the amount added back.
-- **No dividends, no verdict.** If the dividends cannot be read, the forecast waits, since a verdict is written once.
+- **Dividends, splits and capital reductions.** The bars after the anchor are adjusted to the anchor's terms from the exchange's reference prices, so a cash or stock dividend, a split or a capital reduction does not count as a move. A bar whose source gives no reference price is read as it traded. The record keeps the raw close beside the adjusted close it was judged at.
+- **No reference price, no verdict yet.** A verdict is written once, so the forecast waits until the horizon's bar carries its reference price, which a Taiwan listing's bar gets only the next day, or until a later session's bar arrives.
 
 ### The score
 

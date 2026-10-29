@@ -37,7 +37,7 @@ export function createResearch(
     ...sources
   }: {
     marketData: Pick<MarketData, "candles">;
-    fundamentals: Pick<Fundamentals, "statements" | "dividends">;
+    fundamentals: Pick<Fundamentals, "statements">;
     auditor: () => Promise<ClaimAuditor | undefined>;
     reader: () => Promise<FactReader | undefined>;
     news: Pick<NewsStore, "list">;

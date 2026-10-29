@@ -141,9 +141,9 @@ export function ForecastBody({ forecast }: { forecast: Forecast }) {
             close: price.format(outcome.close),
             date: outcome.date,
           })}
-          {outcome.distributed > 0
-            ? ` · ${t("research.forecast.distributed", { cash: price.format(outcome.distributed) })}`
-            : null}
+          {outcome.adjustedClose === outcome.close
+            ? null
+            : ` · ${t("research.forecast.adjusted", { close: price.format(outcome.adjustedClose) })}`}
           {outcome.plan ? (
             <>
               {" · "}

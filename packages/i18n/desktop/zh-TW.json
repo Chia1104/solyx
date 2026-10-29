@@ -1191,7 +1191,7 @@
       "held": "成真",
       "history": "歷史 {{share}}",
       "closed": "{{date}} 收在 {{close}}",
-      "distributed": "已加回期間除息 {{cash}}",
+      "adjusted": "還原權值後 {{close}}",
       "evidence": "決策模型讀 {{count, number}} 則引用事實：利多 {{good}} · 中性 {{mixed}} · 利空 {{bad}}",
       "plan-result": {
         "not-entered": "未進場",

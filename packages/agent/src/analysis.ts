@@ -31,6 +31,7 @@ import {
   HISTORY_YEARS,
   INTRADAY_HISTORY_YEARS,
   Interval,
+  adjustmentFactors,
   barTime,
   historyYears,
   intervalSchema,
@@ -243,6 +244,19 @@ const indicators: CodemodeTool[] = [
     output: z.object({ k: lineSchema, d: lineSchema }),
     run: ([bars]) =>
       kd(bars.map((bar) => ({ ...omit(bar, ["epoch"]), time: bar.epoch }))),
+  }),
+  scriptFunction({
+    name: "indicators.adjustment",
+    description:
+      "For each bar `tools.candles` returns, how far its prices stand below the first bar's terms: each reference up to it over the close before it, compounded, so a split or what went ex reads as no move and a bar without a reference moves none. A return from bar i to a later bar j is (close[j] / adjustment[j]) / (close[i] / adjustment[i]), as the app judges a forecast and measures its base rates.",
+    spread: true,
+    signature: "(bars: Bar[]): Promise<number[]>",
+    input: z.tuple([z.array(barSchema)]),
+    output: valuesSchema,
+    run: ([bars]) =>
+      adjustmentFactors(
+        bars.map((bar) => ({ ...omit(bar, ["epoch"]), time: bar.epoch }))
+      ),
   }),
 ];
 
@@ -949,7 +963,7 @@ function dataFunctions(
   return [
     scriptFunction({
       name: "candles",
-      description: `Every OHLCV bar the app has for a listing, oldest first: about two years of daily bars, three of weekly and five of monthly. since reaches further back on those three intervals, up to ${HISTORY_YEARS} years, an earlier one reading from there, for at most ${HISTORY_LISTINGS} listings a script, since each year costs the source a request the first time. Prices are as traded, so a split or what goes ex reads as a fall; close / reference - 1 is a session's move without it, and backtest.rules makes up for it from the references itself. The latest bar is still forming while its session is open.`,
+      description: `Every OHLCV bar the app has for a listing, oldest first: about two years of daily bars, three of weekly and five of monthly. since reaches further back on those three intervals, up to ${HISTORY_YEARS} years, an earlier one reading from there, for at most ${HISTORY_LISTINGS} listings a script, since each year costs the source a request the first time. Prices are as traded, so a split or what goes ex reads as a fall; close / reference - 1 is a session's move without it, indicators.adjustment carries bars over it, and backtest.rules makes up for it from the references itself. The latest bar is still forming while its session is open.`,
       input: z.object({
         symbol: symbolRefSchema,
         interval: intervalSchema,

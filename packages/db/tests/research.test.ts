@@ -91,7 +91,7 @@ function forecast(id: string, patch: Partial<Forecast> = {}): Forecast {
 const OUTCOME: ForecastOutcome = {
   date: "2026-10-01",
   close: 1020,
-  distributed: 0,
+  adjustedClose: 1020,
   scenario: 1,
   brier: 0.32,
   plan: null,
@@ -336,12 +336,12 @@ test("research kept before its search existed is found once the file opens", () 
 });
 
 test("a forecast kept before base rates, distributions, a vote on each scenario and a reading of its facts reads with none of them", async () => {
-  // The file as it stood before those four migrations.
+  // The file as it stood before those four migrations, and so before outcomes kept adjusted closes.
   const before = join(directory, "migrations-before");
 
   for (const folder of await readdir(MIGRATIONS)) {
     if (
-      !/forecast_(base_rates|distributions|scenario_motions|evidence)$/.test(
+      !/forecast_(base_rates|distributions|scenario_motions|evidence|adjusted_close)$/.test(
         folder
       )
     ) {
@@ -365,7 +365,7 @@ test("a forecast kept before base rates, distributions, a vote on each scenario 
 
   // The vote such a forecast kept was on the whole of it, which says nothing of any one scenario.
   const whole = { carried: true, votes: [] };
-  const { distributed: _cash, ...settled } = OUTCOME;
+  const { adjustedClose: _judged, ...settled } = OUTCOME;
   const db = new DatabaseSync(file);
 
   db.prepare(
@@ -395,6 +395,45 @@ test("a forecast kept before base rates, distributions, a vote on each scenario 
   expect(store.forecast("old-open")).toEqual(
     forecast("old-open", { baseRates: null })
   );
+});
+
+test("an outcome kept with the cash gone ex added back reads as judged at its close plus that cash", async () => {
+  const before = join(directory, "migrations-before");
+
+  for (const folder of await readdir(MIGRATIONS)) {
+    if (!folder.endsWith("forecast_adjusted_close")) {
+      await cp(join(MIGRATIONS, folder), join(before, folder), {
+        recursive: true,
+      });
+    }
+  }
+
+  const file = join(directory, "research.sqlite");
+
+  openResearch(file, before).close();
+
+  const { outcome: _open, ...made } = forecast("old");
+  const { adjustedClose: _judged, ...settled } = OUTCOME;
+  const db = new DatabaseSync(file);
+
+  db.prepare(
+    "INSERT INTO forecasts (id, market, symbol, anchor_date, forecast, outcome) VALUES (?, ?, ?, ?, ?, ?)"
+  ).run(
+    "old",
+    TSMC.market,
+    TSMC.symbol,
+    "2026-09-29",
+    JSON.stringify(made),
+    JSON.stringify({ ...settled, distributed: 30 })
+  );
+  db.close();
+
+  const { store } = open();
+
+  expect(store.forecast("old")?.outcome).toEqual({
+    ...OUTCOME,
+    adjustedClose: 1050,
+  });
 });
 
 test("clearing research empties its search", () => {

@@ -18,7 +18,6 @@ import {
 } from "../src/council.ts";
 import { ForecastDirection, ForecastViolationCode } from "../src/forecast.ts";
 import type { FactReader, Forecast, ForecastDraft } from "../src/forecast.ts";
-import type { Fundamentals } from "../src/fundamentals.ts";
 import { Market, symbolKey } from "../src/market.ts";
 import type { SymbolRef } from "../src/market.ts";
 import { NewsChannel, TimePrecision } from "../src/news.ts";
@@ -39,8 +38,8 @@ const AT_ANCHOR = Date.parse("2026-09-29T14:00:00+08:00");
 
 const AFTER_HORIZON = Date.parse("2026-10-01T14:00:00+08:00");
 
-function bar(date: string, close: number): Candle {
-  return {
+function bar(date: string, close: number, reference?: number): Candle {
+  const candle: Candle = {
     time: Date.parse(`${date}T00:00:00+08:00`) / 1000,
     open: close,
     high: close + 5,
@@ -48,11 +47,19 @@ function bar(date: string, close: number): Candle {
     close,
     volume: 1000,
   };
+
+  if (reference !== undefined) candle.reference = reference;
+
+  return candle;
 }
 
 const ANCHOR_BAR = bar("2026-09-29", 1000);
 
-const LATER_BARS = [bar("2026-09-30", 1010), bar("2026-10-01", 1020)];
+// Each counting from the close before, as a source's reference does on a day nothing went ex.
+const LATER_BARS = [
+  bar("2026-09-30", 1010, 1000),
+  bar("2026-10-01", 1020, 1010),
+];
 
 /**
  * Sixty-four daily bars that end on the anchor: the close swings between 1100 and 1000 every two
@@ -213,13 +220,12 @@ function setup() {
     },
   ]);
 
-  const dividends = vi.fn<Fundamentals["dividends"]>(async () => []);
   const store = memoryStore();
 
   const desk = new ResearchDesk({
     store,
     marketData: { candles },
-    fundamentals: { statements, dividends },
+    fundamentals: { statements },
     onChange,
     now: () => clock.now,
     createId: () => "f-1",
@@ -240,7 +246,6 @@ function setup() {
     candles,
     quarters,
     statements,
-    dividends,
     onChange,
     cover,
   };
@@ -431,40 +436,29 @@ test("forecasting under an id again returns the forecast already made", async ()
   expect(candles).not.toHaveBeenCalled();
 });
 
-test("a forecast waits for the listing's distributions before it settles, and is judged with what went ex added back", async () => {
-  const { desk, store, cover, clock, bars, dividends } = setup();
+test("a forecast waits for its horizon's session to take its reference, and is judged on the anchor's terms", async () => {
+  const { desk, store, cover, clock, bars } = setup();
 
   await cover();
   await desk.forecast(draft);
 
   clock.now = AFTER_HORIZON;
-  // 40 went ex on the horizon's session, where the bars close at 980.
-  bars.daily = [ANCHOR_BAR, bar("2026-09-30", 1010), bar("2026-10-01", 980)];
-  dividends.mockRejectedValueOnce(new Error("FinMind answered 402"));
+  // The horizon's session closed at 980, its bar built from the session's own as yet.
+  bars.daily = [ANCHOR_BAR, LATER_BARS[0], bar("2026-10-01", 980)];
 
-  // An outcome is kept once, so one judged without the distribution could not be put right.
+  // An outcome is kept once, so one judged without what went ex that day could not be put right.
   expect((await desk.coverage(TSMC)).forecasts[0].outcome).toBe(null);
 
-  dividends.mockResolvedValue([
-    {
-      period: "115年第2季",
-      announced: null,
-      cash: 40,
-      stock: 0,
-      cashExDate: "2026-10-01",
-      cashPaidOn: null,
-      stockExDate: null,
-    },
-  ]);
+  // 40 went ex that day, which the reference its source serves counts from.
+  bars.daily = [ANCHOR_BAR, LATER_BARS[0], bar("2026-10-01", 980, 970)];
 
   await desk.coverage(TSMC);
 
-  // 980 as traded, and 1020 with the 40 added back: the "Up" band.
-  expect(store.forecast("f-1")?.outcome).toMatchObject({
-    close: 980,
-    distributed: 40,
-    scenario: 1,
-  });
+  // 980 as traded, and about 1020 on the anchor's terms: the "Up" band.
+  const outcome = store.forecast("f-1")?.outcome;
+
+  expect(outcome).toMatchObject({ close: 980, scenario: 1 });
+  expect(outcome?.adjustedClose).toBeCloseTo((980 * 1010) / 970);
 });
 
 test("a listing without bars cannot anchor a forecast", async () => {
@@ -653,7 +647,7 @@ test("claims are read against their quotes as they are kept, and stay when the m
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => bars },
-    fundamentals: { statements: async () => [], dividends: async () => [] },
+    fundamentals: { statements: async () => [] },
     auditor: async () => ({ audit }),
     now: () => AT_ANCHOR,
   });
@@ -696,7 +690,7 @@ test("a report's events are read against their quotes, refused once behind the e
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
-    fundamentals: { statements: async () => [], dividends: async () => [] },
+    fundamentals: { statements: async () => [] },
     auditor: async () => ({ audit }),
     now: () => clock.now,
   });
@@ -914,7 +908,7 @@ async function reading(read: FactReader["read"]) {
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => HISTORY },
-    fundamentals: { statements: async () => [], dividends: async () => [] },
+    fundamentals: { statements: async () => [] },
     reader: async () => ({ read }),
     now: () => AT_ANCHOR,
   });
@@ -1008,7 +1002,7 @@ test("a forecast is checked again once its facts are read, since the report or t
   const other = new ResearchDesk({
     store: raced.store,
     marketData: { candles: async () => HISTORY },
-    fundamentals: { statements: async () => [], dividends: async () => [] },
+    fundamentals: { statements: async () => [] },
     now: () => AT_ANCHOR,
   });
 
@@ -1129,7 +1123,7 @@ function watching({
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
-    fundamentals: { statements: async () => [], dividends: async () => [] },
+    fundamentals: { statements: async () => [] },
     auditor: async () => (audited ? { audit } : undefined),
     embedder: () => embedder ?? undefined,
     onChange,
@@ -1377,7 +1371,7 @@ test("a search finds by meaning what shares no word with the query, beside what 
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
-    fundamentals: { statements: async () => [], dividends: async () => [] },
+    fundamentals: { statements: async () => [] },
     embedder: () => ({
       space: "local",
       embed: async (texts: readonly string[]) => {
