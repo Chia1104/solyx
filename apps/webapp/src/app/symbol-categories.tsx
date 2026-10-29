@@ -70,14 +70,17 @@ function useCategoryName() {
     market === null ? t("market-filter.every") : t(`market.${market}`);
 }
 
-/** A category's mark, in a box as wide as an icon so a dot lines up with the icons beside it. */
+/**
+ * A category's mark, centered in a box as wide as an icon so a dot lines up with the icons beside
+ * it; the icon drops the margin HeroUI gives an icon in a button, which would push it off center.
+ */
 function CategoryGlyph({ icon }: { icon: CategoryIcon }) {
   return (
     <span aria-hidden className="grid size-4 shrink-0 place-items-center">
       {icon === CategoryIcon.Dot ? (
         <span className="size-1.5 rounded-full bg-current" />
       ) : (
-        <Icon icon={GLYPHS[icon]} className="size-3.5" />
+        <Icon icon={GLYPHS[icon]} className="m-0 size-3.5" />
       )}
     </span>
   );
@@ -265,9 +268,11 @@ export function CategoryDots() {
           const category = categoryKey(each);
 
           return (
-            // The menu opens on the dot's box, which a right click or the menu key reaches through the dot.
+            // The menu opens on the dot's box, which a right click or the menu key reaches through the
+            // dot. A flex box, so the dot is not set on a line by its own baseline.
             <span
               key={category}
+              className="flex"
               onContextMenu={(event) => {
                 event.preventDefault();
                 setMenu({ category, anchor: event.currentTarget });
