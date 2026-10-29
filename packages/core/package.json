@@ -40,7 +40,8 @@
     "./strategy": "./src/strategy.ts",
     "./strategy-templates": "./src/strategy-templates.ts",
     "./theme": "./src/theme.ts",
-    "./web-search": "./src/web-search.ts"
+    "./web-search": "./src/web-search.ts",
+    "./yields": "./src/yields.ts"
   },
   "dependencies": {
     "@solyx/kernel": "workspace:*",

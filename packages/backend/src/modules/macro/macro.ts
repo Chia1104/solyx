@@ -9,8 +9,8 @@ import type {
   MacroRelease,
   MacroSeries,
 } from "@solyx/core/macro";
-import { exchangeDate } from "@solyx/core/market";
-import type { Market } from "@solyx/core/market";
+import { Market, exchangeDate } from "@solyx/core/market";
+import type { YieldCurve, YieldCurveProvider } from "@solyx/core/yields";
 import { shiftDate, HOUR_MS } from "@solyx/utils/date";
 import { freshFor, keepFresh } from "@solyx/utils/fresh";
 import type { AnswerStores } from "@solyx/utils/fresh";
@@ -24,6 +24,12 @@ const SERIES_FRESH_MS = HOUR_MS;
 // A rate closes once a business day, and what it is read for takes one from the day before.
 const RATE_FRESH_MS = 3 * HOUR_MS;
 
+// The Treasury puts out a day's curve once after the close.
+const YIELDS_FRESH_MS = HOUR_MS;
+
+// About three months of sessions, which a curve's moves are read over.
+const YIELD_DAYS = 92;
+
 // Two years and the months a release lags its period, so each of the last thirteen periods has the one a year before it.
 const SERIES_MONTHS = 26;
 
@@ -34,6 +40,8 @@ export interface MacroOptions {
   figures: readonly MacroFiguresProvider[];
   /** The source of the US dollar's rate in Taiwan dollars. */
   exchangeRates: ExchangeRateProvider;
+  /** The source of US Treasury debt's daily yield curve. */
+  yieldCurves: YieldCurveProvider;
   /** Where each market's schedule and figures, and the rate, are kept between runs. */
   answers: AnswerStores;
   /** @default () => new Date() */
@@ -48,13 +56,14 @@ interface Ask<Provider> {
 /**
  * Each market's schedule of economic releases, from `RELEASED_DAYS` back so those just out stay
  * on it, and its indicators' figures over the last two years, each from the source that covers
- * the market and none for a market no source does, and the newest rate between the app's two
- * currencies.
+ * the market and none for a market no source does, the newest rate between the app's two
+ * currencies, and US Treasury debt's yield curve over the last few months.
  */
 export function createMacro({
   calendars,
   figures,
   exchangeRates,
+  yieldCurves,
   answers,
   now = () => new Date(),
 }: MacroOptions) {
@@ -95,6 +104,17 @@ export function createMacro({
     now: () => now().getTime(),
   });
 
+  const curves = keepFresh<YieldCurveProvider, YieldCurve[]>({
+    store: answers("macro:yields"),
+    id: ({ id }) => id,
+    ask: (provider) =>
+      provider.curves(shiftDate(exchangeDate(Market.US, now()), -YIELD_DAYS)),
+    fresh: freshFor(YIELDS_FRESH_MS),
+    // Each curve carries its day, so the last ones read still read for what they are.
+    keepOnFailure: true,
+    now: () => now().getTime(),
+  });
+
   return {
     schedule(market: Market): Promise<MacroRelease[]> {
       const provider = calendars.find(({ markets }) =>
@@ -112,6 +132,11 @@ export function createMacro({
 
     exchangeRate(): Promise<ExchangeRate> {
       return rate(exchangeRates);
+    },
+
+    /** US Treasury debt's yield curve at each of about the last three months' closes, oldest first. */
+    yields(): Promise<YieldCurve[]> {
+      return curves(yieldCurves);
     },
   };
 }

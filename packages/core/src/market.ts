@@ -63,6 +63,12 @@ export const US_INDEX_FUNDS: readonly SymbolRef[] = [
   "IWM",
 ].map((symbol) => ({ market: Market.US, symbol }));
 
+/** Cboe's volatility index, which Longbridge quotes as it does a listing though nothing trades it. */
+export const US_VOLATILITY_INDEX: SymbolRef = {
+  market: Market.US,
+  symbol: ".VIX",
+};
+
 /** A listing as text written for a person or a model reads it, `TW 2330`. */
 export const symbolLabel = ({ market, symbol }: SymbolRef) =>
   `${market} ${symbol}`;

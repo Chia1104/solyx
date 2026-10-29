@@ -239,6 +239,16 @@
       "unpin-hint": "Click to unpin",
       "clear-pins": "Unpin all ({{count}})",
       "benchmark": "Benchmark"
+    },
+    "rates": {
+      "title": "Volatility and rates",
+      "description": "The VIX, and US Treasury yields at each day's close as the Treasury publishes them.",
+      "vix": "Volatility index",
+      "two-year": "2-year Treasury",
+      "ten-year": "10-year Treasury",
+      "spread": "10-year less 2-year",
+      "basis-points": "{{value}} bp",
+      "unread": "The Treasury's yields could not be read"
     }
   },
   "sectors": {

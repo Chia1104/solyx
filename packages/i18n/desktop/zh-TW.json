@@ -239,6 +239,16 @@
       "unpin-hint": "點一下取消釘選",
       "clear-pins": "取消 {{count}} 個釘選",
       "benchmark": "基準"
+    },
+    "rates": {
+      "title": "波動與利率",
+      "description": "VIX，以及財政部公布的每日美債收盤殖利率。",
+      "vix": "波動率指數",
+      "two-year": "2 年期公債",
+      "ten-year": "10 年期公債",
+      "spread": "10 年減 2 年",
+      "basis-points": "{{value}} 基點",
+      "unread": "讀不到財政部的殖利率"
     }
   },
   "sectors": {

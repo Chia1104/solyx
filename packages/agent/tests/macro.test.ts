@@ -44,7 +44,9 @@ function setup() {
     market === Market.TW ? [EXPORTS, SIGNAL] : []
   );
 
-  const [tool] = createMacroTools({ series, now: () => NOW }).tools ?? [];
+  const [tool] =
+    createMacroTools({ series, yields: async () => [], now: () => NOW })
+      .tools ?? [];
 
   const run = async (params: Parameters<ToolRegistration["execute"]>[0]) => {
     // SAFETY: get_macro never uses its call's api.
@@ -112,8 +114,20 @@ test("a US figure reads with what the market expected of each period and of the 
   };
 
   const [tool] =
-    createMacroTools({ series: async () => [prices, rate], now: () => NOW })
-      .tools ?? [];
+    createMacroTools({
+      series: async () => [prices, rate],
+      yields: async () => [
+        {
+          date: "2026-10-27",
+          yields: { "3m": 4.22, "2y": 4.7, "10y": 4.99, "30y": null },
+        },
+        {
+          date: "2026-10-28",
+          yields: { "3m": 4.18, "2y": 5.1, "10y": 5.05, "30y": 5.37 },
+        },
+      ],
+      now: () => NOW,
+    }).tools ?? [];
 
   // SAFETY: get_macro never uses its call's api.
   const api = {} as ToolExecutionApi;
@@ -137,5 +151,9 @@ test("a US figure reads with what the market expected of each period and of the 
     "policy rate, of policy rate, in percent, a level:",
     "period,value,on the year,expected",
     "2026-10-28,3.875,n/a,3.875",
+    "US Treasury par yields at each day's close, in percent, oldest first; the last column is ten years' less two years':",
+    "date,3m,2y,10y,30y,10y less 2y",
+    "2026-10-27,4.22,4.7,4.99,n/a,+0.29",
+    "2026-10-28,4.18,5.1,5.05,5.37,-0.05",
   ]);
 });

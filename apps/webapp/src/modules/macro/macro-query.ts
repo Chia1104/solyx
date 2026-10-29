@@ -8,3 +8,6 @@ export const macroSeriesQuery = (market: Market) =>
 
 /** Goes stale on its own, since nothing pushes when a rate closes. */
 export const exchangeRateQuery = () => orpc.macro.exchangeRate.queryOptions();
+
+/** Goes stale on its own, since nothing pushes when the Treasury puts out a day's curve. */
+export const yieldsQuery = () => orpc.macro.yields.queryOptions();
