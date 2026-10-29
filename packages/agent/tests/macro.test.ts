@@ -23,10 +23,11 @@ const EXPORTS: MacroSeries = {
   figure: MacroFigure.Exports,
   unit: MacroUnit.UsdMillions,
   observations: [
-    { period: "2025-09", value: 40000 },
-    { period: "2026-08", value: 50000.126 },
-    { period: "2026-09", value: 52000 },
+    { period: "2025-09", value: 40000, forecast: null },
+    { period: "2026-08", value: 50000.126, forecast: null },
+    { period: "2026-09", value: 52000, forecast: null },
   ],
+  expected: null,
 };
 
 const SIGNAL: MacroSeries = {
@@ -34,7 +35,8 @@ const SIGNAL: MacroSeries = {
   indicator: MacroIndicator.BusinessSignal,
   figure: MacroFigure.BusinessSignal,
   unit: MacroUnit.Points,
-  observations: [{ period: "2026-08", value: 41 }],
+  observations: [{ period: "2026-08", value: 41, forecast: null }],
+  expected: null,
 };
 
 function setup() {
@@ -66,13 +68,13 @@ test("reads each figure's periods oldest first, with the growth on the year the 
   expect(text.split("\n")).toEqual([
     "TW economic figures as_of 2026-10-12 10:00, each figure's last 13 periods out",
     "exports, of trade, in USD millions:",
-    "period,value,on the year",
-    "2025-09,40000,n/a",
-    "2026-08,50000.13,n/a",
-    "2026-09,52000,+30.00%",
+    "period,value,on the year,expected",
+    "2025-09,40000,n/a,n/a",
+    "2026-08,50000.13,n/a,n/a",
+    "2026-09,52000,+30.00%,n/a",
     "business signal, of business signal, in points:",
-    "period,value,on the year",
-    "2026-08,41,n/a",
+    "period,value,on the year,expected",
+    "2026-08,41,n/a,n/a",
   ]);
   expect(details).toEqual({ market: Market.TW });
 });
@@ -85,4 +87,55 @@ test("a market no source covers says so, which says nothing of its economy", asy
   expect(text).toBe(
     "No source has US's economic figures yet. That says nothing of the economy."
   );
+});
+
+test("a US figure reads with what the market expected of each period and of the next", async () => {
+  const prices: MacroSeries = {
+    market: Market.US,
+    indicator: MacroIndicator.ConsumerPrices,
+    figure: MacroFigure.ConsumerPrices,
+    unit: MacroUnit.GrowthOnYear,
+    observations: [
+      { period: "2026-08", value: 3.4, forecast: null },
+      { period: "2026-09", value: 3.7, forecast: 3.6 },
+    ],
+    expected: { period: "2026-10", forecast: 3.8 },
+  };
+
+  const rate: MacroSeries = {
+    market: Market.US,
+    indicator: MacroIndicator.PolicyRate,
+    figure: MacroFigure.PolicyRate,
+    unit: MacroUnit.Rate,
+    observations: [{ period: "2026-10-28", value: 3.875, forecast: 3.875 }],
+    expected: null,
+  };
+
+  const [tool] =
+    createMacroTools({ series: async () => [prices, rate], now: () => NOW })
+      .tools ?? [];
+
+  // SAFETY: get_macro never uses its call's api.
+  const api = {} as ToolExecutionApi;
+
+  const result = await tool.execute(
+    { market: Market.US },
+    api,
+    BACKGROUND_CONTEXT
+  );
+
+  expect(
+    contentText(result.output ?? [])
+      .split("\n")
+      .slice(1)
+  ).toEqual([
+    "consumer prices, of consumer prices, in percent growth on the year:",
+    "period,value,on the year,expected",
+    "2026-08,3.4,+3.40%,n/a",
+    "2026-09,3.7,+3.70%,3.6",
+    "next, 2026-10, not out yet: 3.8% on the year expected",
+    "policy rate, of policy rate, in percent, a level:",
+    "period,value,on the year,expected",
+    "2026-10-28,3.875,n/a,3.875",
+  ]);
 });

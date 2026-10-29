@@ -37,6 +37,7 @@ import { createSitca } from "@solyx/fundamentals/sitca";
 import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
 import { createCbc } from "@solyx/macro/cbc";
 import { createDgbas } from "@solyx/macro/dgbas";
+import { createLongbridgeMacro } from "@solyx/macro/longbridge";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
 
@@ -262,8 +263,8 @@ export function createServices(config: ConfigFile, host: Host) {
     onChange: () => void windowEvents.publish("devices:changed", {}),
   });
 
-  // One Longbridge sign-in serves US quotes, fundamentals and filings alike, its HTTP API's
-  // budget shared by everything that reads it.
+  // One Longbridge sign-in serves US quotes, fundamentals, filings and economic figures alike, its
+  // HTTP API's budget shared by everything that reads it.
   const longbridge = createLongbridgeAccess({
     secrets,
     openExternal: host.openExternal,
@@ -444,10 +445,12 @@ export function createServices(config: ConfigFile, host: Host) {
     }
   );
 
+  const usMacro = createLongbridgeMacro({ api: longbridgeApi });
+
   // The statistics portal's server leaves its intermediate certificate out, which Node's fetch does not make up for.
   const macro = createMacro({
-    calendars: [createStatGovTw({ fetch: host.chromiumFetch })],
-    figures: [createDgbas()],
+    calendars: [createStatGovTw({ fetch: host.chromiumFetch }), usMacro],
+    figures: [createDgbas(), usMacro],
     exchangeRates: createCbc(),
     answers: cache.answers,
   });

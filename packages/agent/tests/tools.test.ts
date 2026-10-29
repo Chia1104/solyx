@@ -1004,6 +1004,53 @@ test("the prompt carries the skills and the user's instructions", async () => {
   await runtime.close();
 });
 
+test("a US release says what the market expected of its period", async () => {
+  const { run, calendar, figures } = setup();
+
+  calendar.mockResolvedValueOnce({
+    events: [],
+    research: [],
+    unread: [],
+    releases: [
+      {
+        market: Market.US,
+        indicator: MacroIndicator.Employment,
+        date: "2026-11-06",
+        time: "08:30",
+        timing: EventTiming.Set,
+        period: "2026-10",
+        page: null,
+      },
+    ],
+    closures: [],
+    unreadMarkets: [],
+  });
+
+  figures.mockResolvedValueOnce([
+    {
+      market: Market.US,
+      indicator: MacroIndicator.Employment,
+      figure: MacroFigure.PayrollsAdded,
+      unit: MacroUnit.Thousands,
+      observations: [
+        { period: "2026-08", value: 162, forecast: 56 },
+        { period: "2026-09", value: 29, forecast: 90 },
+      ],
+      expected: { period: "2026-10", forecast: 120 },
+    },
+  ]);
+
+  const { text } = await run(AgentToolName.GetCalendar, {
+    symbols: [{ market: Market.US, symbol: "AAPL" }],
+    days: 30,
+  });
+
+  expect(figures).toHaveBeenCalledWith(Market.US);
+  expect(text).toContain(
+    "2026-11-06 08:30 US employment for 2026-10; last out, for 2026-09: payrolls added 29 thousand, 162 thousand the period before, against 90 thousand expected; expected: payrolls added 120 thousand"
+  );
+});
+
 test("the calendar lists the followed listings' events and their markets' releases, deadlines marked", async () => {
   const { run, desk, calendar, figures } = setup();
 
@@ -1165,10 +1212,11 @@ test("the calendar lists the followed listings' events and their markets' releas
       figure: MacroFigure.Exports,
       unit: MacroUnit.UsdMillions,
       observations: [
-        { period: "2025-09", value: 41000 },
-        { period: "2026-08", value: 50000 },
-        { period: "2026-09", value: 52000 },
+        { period: "2025-09", value: 41000, forecast: null },
+        { period: "2026-08", value: 50000, forecast: null },
+        { period: "2026-09", value: 52000, forecast: null },
       ],
+      expected: null,
     },
     {
       market: Market.TW,
@@ -1176,9 +1224,10 @@ test("the calendar lists the followed listings' events and their markets' releas
       figure: MacroFigure.Imports,
       unit: MacroUnit.UsdMillions,
       observations: [
-        { period: "2026-08", value: 36000 },
-        { period: "2026-09", value: 38000.5 },
+        { period: "2026-08", value: 36000, forecast: null },
+        { period: "2026-09", value: 38000.5, forecast: null },
       ],
+      expected: null,
     },
     {
       market: Market.TW,
@@ -1186,10 +1235,11 @@ test("the calendar lists the followed listings' events and their markets' releas
       figure: MacroFigure.ConsumerPrices,
       unit: MacroUnit.Index,
       observations: [
-        { period: "2025-09", value: 100 },
-        { period: "2026-08", value: 102 },
-        { period: "2026-09", value: 102.5 },
+        { period: "2025-09", value: 100, forecast: null },
+        { period: "2026-08", value: 102, forecast: null },
+        { period: "2026-09", value: 102.5, forecast: null },
       ],
+      expected: null,
     },
     {
       market: Market.TW,
@@ -1197,9 +1247,10 @@ test("the calendar lists the followed listings' events and their markets' releas
       figure: MacroFigure.BusinessSignal,
       unit: MacroUnit.Points,
       observations: [
-        { period: "2026-07", value: 40 },
-        { period: "2026-08", value: 41 },
+        { period: "2026-07", value: 40, forecast: null },
+        { period: "2026-08", value: 41, forecast: null },
       ],
+      expected: null,
     },
   ]);
 
@@ -1227,7 +1278,7 @@ test("the calendar lists the followed listings' events and their markets' releas
     "Economic releases of their markets, from 7 days back:",
     "2026-10-08 16:00 TW trade for 2026-09 [https://www.mof.gov.tw/multiplehtml/384]; out: exports USD 52000 million, +26.83% on the year; imports USD 38000.5 million, n/a on the year",
     "2026-11-05 16:00 TW consumer prices for 2026-10; last out, for 2026-09: consumer prices +2.50% on the year (index 102.5)",
-    "2026-10-28 16:00 TW business signal for 2026-09; last out, for 2026-08: business signal 41 points, 40 the period before",
+    "2026-10-28 16:00 TW business signal for 2026-09; last out, for 2026-08: business signal 41 points, 40 points the period before",
     "by 2026-11-03 TW purchasing managers for 2026-10",
     "Weekdays their markets are closed:",
     "2026-10-09 TW closed (國慶日)",

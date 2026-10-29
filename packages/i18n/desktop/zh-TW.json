@@ -479,7 +479,7 @@
   },
   "calendar": {
     "title": "接下來",
-    "description": "未來 {{days}} 天庫存與自選的重要日期：除權息與股利發放、股東會、財報截止日、交易限制、Agent 報告記下的日期、總經數據公布與休市日。財報、總經與休市目前僅支援台股。",
+    "description": "未來 {{days}} 天庫存與自選的重要日期：除權息與股利發放、股東會、財報截止日、交易限制、Agent 報告記下的日期、總經數據公布與休市日。美股的總經數據來自長橋，約可看到三週內的公布；休市日目前僅支援台股。",
     "unfollowed": "加入自選或持有股票後，這裡會顯示它們的除權息、財報與報告日期，以及所屬市場的總經數據公布日。",
     "empty": "未來 {{days}} 天沒有排定的事件。",
     "unread": "無法讀取 {{symbols}} 的基本面資料，它們的日期可能缺漏。",
@@ -519,7 +519,8 @@
       "last": "上期（{{period}}）：{{figure}}",
       "pending": "讀取數值中…",
       "trend": "{{from}} 至 {{to}}",
-      "trend-growth": "年增率，{{from}} 至 {{to}}"
+      "trend-growth": "年增率，{{from}} 至 {{to}}",
+      "expected": "預期：{{figure}}"
     },
     "figures": {
       "consumer-prices": "年增 {{yoy}}",
@@ -529,7 +530,20 @@
       "export-orders": "{{value}}，年增 {{yoy}}",
       "industrial-production": "年增 {{yoy}}",
       "business-signal": "{{value}} 分",
-      "gdp-growth": "年增 {{value}}"
+      "gdp-growth": "年增 {{value}}",
+      "gdp-annualized": "年化季增 {{value}}",
+      "policy-rate": "目標區間中值 {{value}}",
+      "payrolls-added": "非農新增 {{value}}",
+      "unemployment": "失業率 {{value}}",
+      "hourly-earnings": "時薪年增 {{yoy}}",
+      "pce-prices": "年增 {{yoy}}",
+      "core-pce-prices": "核心年增 {{yoy}}",
+      "retail-sales": "月增 {{value}}",
+      "producer-prices": "年增 {{yoy}}",
+      "manufacturing-pmi": "{{value}}",
+      "services-pmi": "{{value}}",
+      "initial-claims": "{{value}} 件",
+      "consumer-sentiment": "{{value}}"
     },
     "no-figure": "—",
     "figures-unread": "無法讀取{{markets}}的總經數據，發布列暫時不顯示數值。",
@@ -547,7 +561,16 @@
       "export-orders": "外銷訂單",
       "industrial-production": "工業生產",
       "business-signal": "景氣對策信號",
-      "purchasing-managers": "採購經理人指數"
+      "purchasing-managers": "採購經理人指數",
+      "manufacturing-survey": "ISM 製造業指數",
+      "services-survey": "ISM 服務業指數",
+      "policy-rate": "利率決議",
+      "employment": "就業報告",
+      "personal-income": "個人所得與支出",
+      "retail-sales": "零售銷售",
+      "producer-prices": "生產者物價指數",
+      "jobless-claims": "初領失業救濟金",
+      "consumer-sentiment": "消費者信心"
     },
     "until": "至 {{date}}",
     "view": "檢視",

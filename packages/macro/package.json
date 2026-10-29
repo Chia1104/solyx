@@ -6,6 +6,7 @@
   "exports": {
     "./cbc": "./src/cbc.ts",
     "./dgbas": "./src/dgbas.ts",
+    "./longbridge": "./src/longbridge.ts",
     "./stat-gov-tw": "./src/stat-gov-tw.ts"
   },
   "scripts": {
@@ -13,6 +14,7 @@
   },
   "dependencies": {
     "@solyx/core": "workspace:*",
+    "@solyx/market-data": "workspace:*",
     "es-toolkit": "catalog:",
     "ky": "catalog:",
     "zod": "catalog:"

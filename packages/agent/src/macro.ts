@@ -8,6 +8,7 @@ import type { MacroSeries } from "@solyx/core/macro";
 import { Market, exchangeTime, marketSchema } from "@solyx/core/market";
 
 import { figure, named, percentChange } from "./figures.ts";
+import { valueText } from "./macro-text.ts";
 import { defineTool } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 
@@ -26,16 +27,33 @@ const UNIT_NAME: Record<MacroUnit, string> = {
   [MacroUnit.UsdMillions]: "USD millions",
   [MacroUnit.Points]: "points",
   [MacroUnit.Percent]: "percent",
+  [MacroUnit.Rate]: "percent, a level",
+  [MacroUnit.GrowthOnYear]: "percent growth on the year",
+  [MacroUnit.Thousands]: "thousands",
 };
 
 function seriesText(series: MacroSeries): string[] {
+  const { expected, unit } = series;
+  // A rate a central bank sets in eighths of a point.
+  const digits = unit === MacroUnit.Rate ? 3 : 2;
+
   return [
-    `${named(series.figure)}, of ${named(series.indicator)}, in ${UNIT_NAME[series.unit]}:`,
-    "period,value,on the year",
+    `${named(series.figure)}, of ${named(series.indicator)}, in ${UNIT_NAME[unit]}:`,
+    "period,value,on the year,expected",
     ...takeRight(macroReadings(series), LISTED_PERIODS).map(
-      ({ period, value, yoy }) =>
-        [period, figure(value), percentChange(yoy)].join(",")
+      ({ period, value, yoy, forecast }) =>
+        [
+          period,
+          figure(value, digits),
+          percentChange(yoy),
+          figure(forecast, digits),
+        ].join(",")
     ),
+    ...(expected
+      ? [
+          `next, ${expected.period}, not out yet: ${valueText[unit](expected.forecast)} expected`,
+        ]
+      : []),
   ];
 }
 
@@ -52,7 +70,7 @@ export function createMacroTools(options: MacroToolsOptions): Extension {
       defineTool({
         name: AgentToolName.GetMacro,
         replay: "safe",
-        description: `The figures of a market's economic indicators over their last ${LISTED_PERIODS} periods, oldest first, from its statistics agency's database, with the growth on the year the app computed: Taiwan's consumer prices and core consumer prices, exports and imports, export orders, industrial production, the business signal's score and real GDP growth. A period is a month, or a quarter for GDP, and the newest is the last one out, which get_calendar's releases say when the next follows. Growth is "n/a" for a score or a rate. It has no forecast of any figure and no consensus, and neither the purchasing managers' indices nor the official forecast, which get_calendar links to their agency's page. Taiwan only for now. Cite these rather than work them out again.`,
+        description: `The figures of a market's economic indicators over their last ${LISTED_PERIODS} periods, oldest first, with the growth on the year the app computed and what the market expected of each where its source says. Taiwan's come from its statistics agency's database: consumer prices and core consumer prices, exports and imports, export orders, industrial production, the business signal's score and real GDP growth, with no expectations, and neither the purchasing managers' indices nor the official forecast, which get_calendar links to their agency's page. The US's come from Longbridge while the user is signed in to it: the Fed's target rate (the middle of its range, by the day it was decided), CPI and core CPI, PCE and core PCE prices, nonfarm payrolls added, unemployment and average hourly earnings, retail sales against the month before, the ISM's manufacturing and services indices, GDP's advance estimate at an annual rate against the quarter before, producer prices, initial jobless claims (by the week's last day) and the University of Michigan's preliminary consumer sentiment, each with the consensus, and the next period's consensus once its release is scheduled, a few weeks ahead. A period is a month, a quarter, or a day for a decision or a week, and the newest is the last one out, which get_calendar's releases say when the next follows. Growth is "n/a" for a score, a rate or a count. Cite these rather than work them out again.`,
         parameters: z.object({ market: marketSchema.default(Market.TW) }),
         async execute({ market }) {
           const series = await options.series(market);

@@ -10,7 +10,7 @@ const API_URL = "https://openapi.longbridge.com";
 // Longbridge sets no limit for its HTTP API, but refuses more than one request each 0.2 seconds.
 const REQUESTS_PER_SECOND = 5;
 
-// Its descriptions in traditional Chinese, as the app names US listings.
+// Its descriptions in traditional Chinese, as the app names US listings, unless a read asks for another.
 const LANGUAGE = "zh-HK";
 
 /**
@@ -67,12 +67,13 @@ export interface LongbridgeApiOptions {
 
 /** Longbridge's HTTP API on one sign-in, whose readers share its budget. */
 export interface LongbridgeApi {
-  /** `path`'s data as `schema` reads it; fails naming `what` and the reason Longbridge gives. */
+  /** `path`'s data as `schema` reads it, its text in `language`; fails naming `what` and the reason Longbridge gives. */
   read<Schema extends z.ZodType>(
     path: string,
     searchParams: Record<string, string>,
     schema: Schema,
-    what: string
+    what: string,
+    language?: string
   ): Promise<z.infer<Schema>>;
 }
 
@@ -92,7 +93,7 @@ export function createLongbridgeApi({
   });
 
   return {
-    async read(path, searchParams, schema, what) {
+    async read(path, searchParams, schema, what, language = LANGUAGE) {
       const token = await accessToken();
 
       const response = await budget(() =>
@@ -103,7 +104,7 @@ export function createLongbridgeApi({
               headers: {
                 authorization: `Bearer ${token}`,
                 "x-dc-region": longbridgeDataCenter(token),
-                "accept-language": LANGUAGE,
+                "accept-language": language,
               },
             }),
           what

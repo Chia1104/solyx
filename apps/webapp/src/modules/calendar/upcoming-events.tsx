@@ -11,8 +11,13 @@ import type {
   ReleaseEvent,
   ResearchEvent,
 } from "@solyx/core/calendar";
-import { MacroUnit, macroReadings, releaseReadings } from "@solyx/core/macro";
-import type { MacroRelease, MacroSeries } from "@solyx/core/macro";
+import {
+  MacroUnit,
+  macroReadings,
+  releaseExpectations,
+  releaseReadings,
+} from "@solyx/core/macro";
+import type { MacroFigure, MacroRelease, MacroSeries } from "@solyx/core/macro";
 import { exchangeDate, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import type { MarketClosure } from "@solyx/core/session";
@@ -225,10 +230,119 @@ function figureTrend(release: ReleaseEvent, series: readonly MacroSeries[]) {
   };
 }
 
+/** A figure in words as its copy says it: its value in its unit, and its growth on the year where it has one. */
+function figureText(
+  t: TFunction,
+  format: ReturnType<typeof numberFormats>,
+  {
+    figure,
+    unit,
+    value,
+    yoy,
+  }: { figure: MacroFigure; unit: MacroUnit; value: number; yoy: number | null }
+): string {
+  const shown = {
+    [MacroUnit.Index]: () => format.indicator.format(value),
+    [MacroUnit.UsdMillions]: () => format.compactUsd.format(value * 1e6),
+    [MacroUnit.Points]: () => format.indicator.format(value),
+    [MacroUnit.Percent]: () => format.percentChange.format(value / 100),
+    [MacroUnit.Rate]: () => format.rate.format(value / 100),
+    [MacroUnit.GrowthOnYear]: () => format.percentChange.format(value / 100),
+    [MacroUnit.Thousands]: () => format.volume.format(value * 1000),
+  }[unit]();
+
+  return t(`calendar.figures.${figure}`, {
+    value: shown,
+    yoy:
+      yoy === null ? t("calendar.no-figure") : format.percentChange.format(yoy),
+  });
+}
+
+/** What the market expected of a release's own period, before or after it came out, where its source says. */
+function ReleaseExpected({ release }: { release: ReleaseEvent }) {
+  const { t, i18n } = useTranslation();
+  const format = numberFormats(i18n.language);
+  const [reading] = release.readings;
+
+  const expected =
+    reading?.period === release.period
+      ? reading.forecast === null
+        ? null
+        : { ...reading, forecast: reading.forecast }
+      : release.expected.at(0);
+
+  if (!expected) return null;
+
+  return (
+    <span className="ms-1.5 text-xs text-muted tabular-nums">
+      {t("calendar.reading.expected", {
+        figure: figureText(t, format, {
+          figure: expected.figure,
+          unit: expected.unit,
+          value: expected.forecast,
+          yoy:
+            expected.unit === MacroUnit.GrowthOnYear
+              ? expected.forecast / 100
+              : null,
+        }),
+      })}
+    </span>
+  );
+}
+
+/** How a release's headline figure has gone the periods before, drawn in the colour of its newest period's move from the one before. */
+function ReleaseTrend({
+  release,
+  series,
+}: {
+  release: ReleaseEvent;
+  series: readonly MacroSeries[];
+}) {
+  const { t } = useTranslation();
+  const direction = useDirectionColors(release.market);
+  const trend = figureTrend(release, series);
+  const first = trend?.points.at(0);
+  const previous = trend?.points.at(-2);
+  const last = trend?.points.at(-1);
+
+  if (!trend || !first || !last || trend.points.length < 3) return null;
+
+  // The user's colours for a rise and a fall in the release's market, as a listing's line takes them.
+  const tone =
+    (previous
+      ? directionOf(direction, last.value - previous.value)?.solid
+      : undefined) ?? "var(--muted)";
+
+  return (
+    <span
+      title={t(
+        trend.grows
+          ? "calendar.reading.trend-growth"
+          : "calendar.reading.trend",
+        { from: first.period, to: last.period }
+      )}
+      className="ms-2 inline-block h-3.5 w-14 align-middle">
+      <Sparkline
+        points={trend.points.map(({ value }, index) => ({
+          time: index,
+          value,
+        }))}
+        from={0}
+        to={trend.points.length - 1}
+        baseline={trend.grows ? 0 : null}
+        color={tone}
+        // So small a line shows its wash only this strong.
+        shade={0.6}
+        className="size-full"
+      />
+    </span>
+  );
+}
+
 /**
  * A release's headline figure in words, what it brought once its period is out or else the newest
- * out before it, with how it has gone the periods before, drawn in the colour of its newest
- * period's move from the one before, while its market's figures are still being read.
+ * out before it, with what was expected of it and how it has gone, while its market's figures are
+ * still being read.
  */
 function ReleaseFigure({
   release,
@@ -241,7 +355,6 @@ function ReleaseFigure({
 }) {
   const { t, i18n } = useTranslation();
   const format = numberFormats(i18n.language);
-  const direction = useDirectionColors(release.market);
   const [reading] = release.readings;
 
   if (pending) {
@@ -252,66 +365,22 @@ function ReleaseFigure({
     );
   }
 
-  if (!reading) return null;
-
-  const value = {
-    [MacroUnit.Index]: () => format.indicator.format(reading.value),
-    [MacroUnit.UsdMillions]: () =>
-      format.compactUsd.format(reading.value * 1e6),
-    [MacroUnit.Points]: () => format.indicator.format(reading.value),
-    [MacroUnit.Percent]: () => format.percentChange.format(reading.value / 100),
-  }[reading.unit]();
-
-  const figure = t(`calendar.figures.${reading.figure}`, {
-    value,
-    yoy:
-      reading.yoy === null
-        ? t("calendar.no-figure")
-        : format.percentChange.format(reading.yoy),
-  });
-
-  const trend = figureTrend(release, series);
-  const first = trend?.points.at(0);
-  const previous = trend?.points.at(-2);
-  const last = trend?.points.at(-1);
-
-  // The user's colours for a rise and a fall in the release's market, as a listing's line takes them.
-  const tone =
-    (previous && last
-      ? directionOf(direction, last.value - previous.value)?.solid
-      : undefined) ?? "var(--muted)";
-
   return (
     <>
-      <span className="ms-1.5 text-xs tabular-nums">
-        {reading.period === release.period
-          ? t("calendar.reading.out", { figure })
-          : t("calendar.reading.last", { period: reading.period, figure })}
-      </span>
-      {trend && first && last && trend.points.length >= 3 ? (
-        <span
-          title={t(
-            trend.grows
-              ? "calendar.reading.trend-growth"
-              : "calendar.reading.trend",
-            { from: first.period, to: last.period }
-          )}
-          className="ms-2 inline-block h-3.5 w-14 align-middle">
-          <Sparkline
-            points={trend.points.map(({ value }, index) => ({
-              time: index,
-              value,
-            }))}
-            from={0}
-            to={trend.points.length - 1}
-            baseline={trend.grows ? 0 : null}
-            color={tone}
-            // So small a line shows its wash only this strong.
-            shade={0.6}
-            className="size-full"
-          />
+      {reading ? (
+        <span className="ms-1.5 text-xs tabular-nums">
+          {reading.period === release.period
+            ? t("calendar.reading.out", {
+                figure: figureText(t, format, reading),
+              })
+            : t("calendar.reading.last", {
+                period: reading.period,
+                figure: figureText(t, format, reading),
+              })}
         </span>
       ) : null}
+      <ReleaseExpected release={release} />
+      <ReleaseTrend release={release} series={series} />
     </>
   );
 }
@@ -439,6 +508,7 @@ export function UpcomingEvents({ symbols }: { symbols: SymbolRef[] }) {
     data.releases.map((release): ReleaseEvent => ({
       ...release,
       readings: releaseReadings(release, series),
+      expected: releaseExpectations(release, series),
     })),
     ({ date }) => date >= (running.at(0) ?? today)
   );

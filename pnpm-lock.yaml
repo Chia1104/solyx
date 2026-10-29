@@ -1361,6 +1361,9 @@ importers:
       '@solyx/core':
         specifier: workspace:*
         version: link:../core
+      '@solyx/market-data':
+        specifier: workspace:*
+        version: link:../market-data
       es-toolkit:
         specifier: 'catalog:'
         version: 1.52.0

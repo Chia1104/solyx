@@ -284,7 +284,9 @@ export function createDgbas(options: DgbasOptions = {}): MacroFiguresProvider {
       const observations = listed
         .slice(0, out + 1)
         .flatMap(({ period, value }): MacroObservation[] =>
-          period === null || value === undefined ? [] : [{ period, value }]
+          period === null || value === undefined
+            ? []
+            : [{ period, value, forecast: null }]
         );
 
       if (observations.length === 0) {
@@ -299,6 +301,8 @@ export function createDgbas(options: DgbasOptions = {}): MacroFiguresProvider {
         figure: followed.figure,
         unit: followed.unit,
         observations,
+        // The database holds what came out, never what was expected of it.
+        expected: null,
       };
     });
   }
