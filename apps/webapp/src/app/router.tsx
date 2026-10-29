@@ -5,6 +5,7 @@ import {
   createRouter,
   redirect,
 } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import * as z from "zod";
 
 import { OverviewTab, overviewTabSchema } from "@solyx/api/overview-tab";
@@ -18,6 +19,7 @@ import { marketSchema, symbolRefSchema } from "@solyx/core/market";
 import { strategyNameSchema } from "@solyx/core/strategy";
 
 import { ErrorFallback } from "../components/error-fallback.tsx";
+import { PageFallback } from "../components/fallback-frame.tsx";
 import { NotFound } from "../components/not-found.tsx";
 import { ChartKind, chartKindSchema } from "../modules/market/chart-kind.ts";
 import { LowerView, lowerViewSchema } from "../modules/market/lower-view.ts";
@@ -147,6 +149,15 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+/** A page that failed, under a header as every page is. */
+function RouteError(props: ErrorComponentProps) {
+  return (
+    <PageFallback>
+      <ErrorFallback {...props} />
+    </PageFallback>
+  );
+}
+
 /** Builds load from file://, so routes live in the hash to survive reloads and open in new windows. */
 /** A path's first segment names its kind of page: the overview, a listing, the strategies, settings or onboarding. */
 const pageOf = (pathname: string) => pathname.split("/")[1];
@@ -161,10 +172,10 @@ export const router = createRouter({
     onboardingRoute,
   ]),
   history: createHashHistory(),
-  defaultErrorComponent: ErrorFallback,
+  defaultErrorComponent: RouteError,
   defaultNotFoundComponent: NotFound,
-  // The main view scrolls rather than the window, so a new page or settings section opens at its top.
-  scrollToTopSelectors: ["main"],
+  // A page scrolls under its header rather than the window, so a new page or settings section opens at its top.
+  scrollToTopSelectors: ["[data-page-body]"],
   // Moving to another kind of page crossfades the main view. Flipping between listings, the most
   // frequent move and often by keyboard, and a new interval, overview tab or settings section
   // update in place.

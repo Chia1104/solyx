@@ -4,9 +4,8 @@ import { Button, cn } from "@heroui/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
+import { ColumnHeader } from "../../components/column-header.tsx";
 import { PageColumn } from "../../components/page.tsx";
-import { WindowTitleBar } from "../../components/window-title-bar.tsx";
-import { BrokerModeRule } from "../account/broker-mode-chip.tsx";
 
 import { ONBOARDING_STEPS, OnboardingStep } from "./onboarding-step.ts";
 import { useOnboardingStore } from "./onboarding-store.ts";
@@ -78,17 +77,17 @@ export function OnboardingFlow({
   };
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden text-sm">
-      <WindowTitleBar className="px-4">
+    // One column, at both ends of the window, keeping its header clear of the window's controls.
+    <div className="flex h-dvh flex-col overflow-hidden text-sm [--column-end:var(--window-end)] [--column-start:var(--window-start)]">
+      <ColumnHeader>
         <span className="text-sm font-semibold">Solyx</span>
         <span className="text-sm text-muted">{t("onboarding.title")}</span>
         <Button size="sm" variant="ghost" className="ml-auto" onPress={leave}>
           {t("onboarding.skip")}
         </Button>
-      </WindowTitleBar>
-      <BrokerModeRule />
-      <div className="flex min-h-0 flex-1 p-2">
-        <div className="@container/main min-w-0 flex-1 overflow-y-auto board px-2 pb-2">
+      </ColumnHeader>
+      <div className="flex min-h-0 flex-1">
+        <div className="@container/main min-w-0 flex-1 overflow-y-auto p-2">
           <PageColumn>
             <div className="px-4 py-3">
               <OnboardingProgress current={step} />

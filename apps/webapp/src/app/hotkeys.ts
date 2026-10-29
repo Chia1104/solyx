@@ -39,7 +39,7 @@ export function toggleAtOnce(toggle: () => void) {
 /**
  * ⌘B and ⌘I show or hide the side panes, but for one held open, and ⌘K jumps to symbol search,
  * with Ctrl off macOS. A keyboard toggle is instant, since a shortcut is for getting somewhere
- * fast; the title bar's buttons slide the panes. The back shortcuts and the mouse's back button
+ * fast; the pane toggles slide the panes. The back shortcuts and the mouse's back button
  * go back a page.
  */
 export function useWorkspaceHotkeys(openSearch: () => void) {

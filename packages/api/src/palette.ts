@@ -557,32 +557,6 @@ export function resolvePalette(
   return { ...PALETTES[palette.extends][scheme], ...palette[scheme] };
 }
 
-// `weight` of the way from `from` to `to`, channel by channel in sRGB.
-function mixHex(from: string, to: string, weight: number) {
-  const channel = (hex: string, at: number) =>
-    Number.parseInt(hex.slice(at, at + 2), 16);
-
-  return `#${[1, 3, 5]
-    .map((at) =>
-      Math.round(
-        channel(from, at) + (channel(to, at) - channel(from, at)) * weight
-      )
-        .toString(16)
-        .padStart(2, "0")
-    )
-    .join("")}`;
-}
-
-/**
- * The window's own colour, the table the board lies on: a shade behind the palette's
- * background, toward its ink by day and toward black by night, so each layer over it is lighter.
- */
-export function tableColor(colors: PaletteColors, scheme: ColorScheme) {
-  return scheme === ColorScheme.Light
-    ? mixHex(colors.background, colors.foreground, 0.06)
-    : mixHex(colors.background, "#000000", 0.35);
-}
-
 /** Whether `id` names one of `custom`, which the user can edit, rather than a built-in palette. */
 export function isCustomPalette(
   id: string,

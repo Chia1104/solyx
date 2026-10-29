@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { BrowserWindow, app, nativeTheme, shell } from "electron";
 
-import { ColorScheme, tableColor } from "@solyx/api/palette";
+import { ColorScheme } from "@solyx/api/palette";
 import { PRODUCT_NAME } from "@solyx/api/product";
 import type { WindowPaint } from "@solyx/backend/host";
 
@@ -15,29 +15,29 @@ const rendererUrl = process.env.SOLYX_RENDERER_URL;
 /** The dark rendition of `resources/icon.icon`, which is the icon's source. */
 export const APP_ICON = join(bundleDir, "icon.png");
 
-/** The renderer's title bar height; it lays itself out around the controls through `env(titlebar-area-*)`. */
+/** The height of the renderer's top row, its columns' headers, which keep clear of the controls through `env(titlebar-area-*)`. */
 const TITLE_BAR_HEIGHT = 44;
 
-/** What a window draws itself: the table the page lies on, and its controls' symbols. */
+/** What a window draws itself: the ground the page lies on, and its controls' symbols. */
 interface WindowChrome {
-  table: string;
+  background: string;
   symbols: string;
 }
 
 function titleBarOverlay(chrome: WindowChrome) {
   return {
-    color: chrome.table,
+    color: chrome.background,
     symbolColor: chrome.symbols,
     height: TITLE_BAR_HEIGHT,
   };
 }
 
 /**
- * Paints the window's own background, which shows until the page paints and is the table the
- * page lies on, and the window controls Windows and Linux draw on it.
+ * Paints the window's own background, in the page's colour so it shows until the page paints,
+ * and the window controls Windows and Linux draw on it.
  */
 function paintWindow(win: BrowserWindow, chrome: WindowChrome) {
-  win.setBackgroundColor(chrome.table);
+  win.setBackgroundColor(chrome.background);
 
   if (process.platform !== "darwin")
     win.setTitleBarOverlay(titleBarOverlay(chrome));
@@ -58,7 +58,7 @@ export function createWindows() {
 
     const colors = painted.colors[scheme];
 
-    return { table: tableColor(colors, scheme), symbols: colors.foreground };
+    return { background: colors.background, symbols: colors.foreground };
   }
 
   /** The renderer is sandboxed and can only reach the main process through the preload bridge. */
@@ -74,7 +74,7 @@ export function createWindows() {
       title: PRODUCT_NAME,
       // Windows shows the executable's icon and macOS the app's.
       icon: process.platform === "linux" ? APP_ICON : undefined,
-      backgroundColor: initial.table,
+      backgroundColor: initial.background,
       titleBarStyle: "hidden",
       titleBarOverlay: titleBarOverlay(initial),
       // Centers the traffic lights in the title bar.

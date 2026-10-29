@@ -558,14 +558,14 @@ export function AgentComposer({
           description={compact.error.message}
         />
       ) : null}
-      {/* It holds its attachments a gap inside its edge, so it rounds wider by the gap, as the board does. */}
+      {/* It holds its attachments a gap inside its edge, so it rounds wider by the gap, as a floating pane does. */}
       <DropZone
         aria-label={t("agent.attachments.drop")}
         getDropOperation={(types) =>
           types.has(DIRECTORY_DRAG_TYPE) ? "cancel" : "copy"
         }
         onDrop={files.drop}
-        className="relative rounded-board border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus data-drop-target:border-accent">
+        className="relative rounded-tray border border-border bg-surface shadow-xs transition-colors focus-within:border-field-border-focus data-drop-target:border-accent">
         <MessageAttachments
           focus={focus}
           files={files.files}

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { cn } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -6,7 +8,7 @@ import { BrokerMode } from "@solyx/core/broker";
 
 import { orpc } from "../../app/rpc.ts";
 
-/** Paper trading is drawn in pencil and live trading in ink, like the band under the title bar. */
+/** Paper trading is drawn in pencil and live trading in ink, like the band under the columns' headers. */
 export function BrokerModeChip() {
   const { t } = useTranslation();
   const { data } = useQuery(orpc.account.summary.queryOptions());
@@ -26,16 +28,13 @@ export function BrokerModeChip() {
   );
 }
 
-/** The strip under the title bar: hatching while trades are paper, a solid ink line once they are real. */
-export function BrokerModeRule() {
+/** Says which broker orders go to, which the band under every column's header (`broker-rule`) draws. */
+export function BrokerModeScope({ children }: { children: ReactNode }) {
   const { data } = useQuery(orpc.account.summary.queryOptions());
 
-  const live = data?.brokerMode === BrokerMode.Live;
-
   return (
-    <div
-      aria-hidden
-      className={cn("shrink-0", live ? "h-0.5 bg-accent" : "h-1.5 hatch")}
-    />
+    <div data-broker-mode={data?.brokerMode} className="contents">
+      {children}
+    </div>
   );
 }

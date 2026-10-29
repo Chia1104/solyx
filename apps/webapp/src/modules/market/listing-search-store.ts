@@ -32,8 +32,8 @@ const persistedSchema = z.object({
 });
 
 /**
- * The title bar's listing search, which the title bar, its shortcut and the dialog share. Only the
- * market picked and the listings opened are kept between launches.
+ * The workspace's listing search, which the symbols pane's button, its shortcut and the dialog
+ * share. Only the market picked and the listings opened are kept between launches.
  */
 export const useListingSearchStore = create<ListingSearchStore>()(
   persist(

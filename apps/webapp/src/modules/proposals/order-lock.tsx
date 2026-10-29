@@ -13,8 +13,8 @@ import { tradingSettingsQuery } from "../settings/settings-query.ts";
 const TOOLTIP_DELAY = 300;
 
 /**
- * The user's lock on every order, in the title bar so it is one click away from anywhere; the
- * desk reads it at each proposal and confirmation.
+ * The user's lock on every order, at the foot of the symbols pane so it is one click away from
+ * any page; the desk reads it at each proposal and confirmation.
  */
 export function OrderLockToggle() {
   const { t } = useTranslation();
