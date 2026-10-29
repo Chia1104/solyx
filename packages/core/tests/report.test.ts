@@ -297,14 +297,20 @@ describe("stanceSpells", () => {
     sections: {},
   });
 
-  const close = (day: string, price: number): Candle => ({
-    time: Date.parse(`${day}T00:00:00+08:00`) / 1000,
-    open: price,
-    high: price,
-    low: price,
-    close: price,
-    volume: 1,
-  });
+  const close = (day: string, price: number, reference?: number): Candle => {
+    const candle: Candle = {
+      time: Date.parse(`${day}T00:00:00+08:00`) / 1000,
+      open: price,
+      high: price,
+      low: price,
+      close: price,
+      volume: 1,
+    };
+
+    if (reference !== undefined) candle.reference = reference;
+
+    return candle;
+  };
 
   const DAILY = [
     close("2026-09-01", 100),
@@ -315,11 +321,11 @@ describe("stanceSpells", () => {
   ];
 
   const INDEX = [
-    close("2026-09-01", 1000),
-    close("2026-09-02", 1010),
-    close("2026-09-03", 1020),
-    close("2026-09-04", 1020),
-    close("2026-09-07", 1010),
+    { date: "2026-09-01", close: 1000 },
+    { date: "2026-09-02", close: 1010 },
+    { date: "2026-09-03", close: 1020 },
+    { date: "2026-09-04", close: 1020 },
+    { date: "2026-09-07", close: 1010 },
   ];
 
   test("a stretch runs from the day a stance was taken to the day a revision changed it, and the last one stands", () => {
@@ -362,6 +368,40 @@ describe("stanceSpells", () => {
 
     expect(spell).toMatchObject({ from: "2026-09-05", sessions: 1 });
     expect(spell.change).toBeCloseTo(90 / 99 - 1);
+  });
+
+  test("what went ex, split or was reduced inside a stretch reads as no move", () => {
+    // 5 went ex on the 2nd and the listing split two for one on the 4th, each in its reference.
+    const [spell] = stanceSpells(
+      [kept(1, "2026-09-01", ReportStance.Bullish)],
+      [
+        close("2026-09-01", 100),
+        close("2026-09-02", 96, 95),
+        close("2026-09-03", 98),
+        close("2026-09-04", 49.5, 49),
+        close("2026-09-07", 50),
+      ],
+      INDEX
+    );
+
+    // Each session's return compounded: 96/95, 98/96, 49.5/49 and 50/49.5.
+    expect(spell.change).toBeCloseTo(
+      (96 / 95) * (98 / 96) * (49.5 / 49) * (50 / 49.5) - 1
+    );
+    expect(spell.benchmark).toBeCloseTo(0.01);
+  });
+
+  test("a standing stretch ends with the newest session the index has", () => {
+    // The index's close of the 7th is not out yet.
+    const [spell] = stanceSpells(
+      [kept(1, "2026-09-01", ReportStance.Bullish)],
+      DAILY,
+      INDEX.slice(0, -1)
+    );
+
+    expect(spell).toMatchObject({ sessions: 3 });
+    expect(spell.change).toBeCloseTo(99 / 100 - 1);
+    expect(spell.benchmark).toBeCloseTo(0.02);
   });
 
   test("a stretch with nothing to measure it by is left out", () => {

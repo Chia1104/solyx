@@ -19,7 +19,13 @@ import { createPaperBroker } from "@solyx/brokers/paper";
 import { BrokerMode } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
 import { changesSince, watchesListings } from "@solyx/core/changes";
-import { Currency, Market, symbolKey, symbolLabel } from "@solyx/core/market";
+import {
+  BENCHMARK,
+  Currency,
+  Market,
+  symbolKey,
+  symbolLabel,
+} from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { OrderDesk, ProposalStatus } from "@solyx/core/order-desk";
 import type { RiskLimits } from "@solyx/core/risk";
@@ -67,6 +73,10 @@ import {
 import { createLongbridgeAccess } from "./modules/market/longbridge-access.ts";
 import { createMarketDataSources } from "./modules/market/market-data-sources.ts";
 import { createMarketData } from "./modules/market/market-data.ts";
+import {
+  createMarketReturns,
+  fundTotalReturn,
+} from "./modules/market/market-returns.ts";
 import { createRotations } from "./modules/market/rotations.ts";
 import { createScheduleDays } from "./modules/market/schedule-days.ts";
 import {
@@ -438,10 +448,20 @@ export function createServices(config: ConfigFile, host: Host) {
     join(import.meta.dirname, "migrations", "research")
   );
 
+  // No source serves the S&P 500 on total return, so the US's is SPY's.
+  const marketReturns = createMarketReturns({
+    providers: [
+      finMind,
+      fundTotalReturn(marketData, BENCHMARK[Market.US].symbol),
+    ],
+    answers: cache.answers,
+  });
+
   const research = createResearch(
     researchData,
     {
       marketData,
+      marketReturns,
       fundamentals,
       auditor: () => decisions.claimAuditor(),
       reader: () => decisions.factReader(),

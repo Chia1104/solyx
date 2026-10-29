@@ -299,7 +299,7 @@ function ReportView({
             count: standing.sessions,
             change: percentChange.format(standing.change),
             benchmark: percentChange.format(standing.benchmark),
-            index: BENCHMARK[market].name,
+            index: BENCHMARK[market].totalReturn,
           })}
         </p>
       ) : null}

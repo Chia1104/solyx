@@ -18,6 +18,7 @@ import {
 } from "../src/council.ts";
 import { ForecastDirection, ForecastViolationCode } from "../src/forecast.ts";
 import type { FactReader, Forecast, ForecastDraft } from "../src/forecast.ts";
+import type { MarketReturns } from "../src/market-data.ts";
 import { Market, symbolKey } from "../src/market.ts";
 import type { SymbolRef } from "../src/market.ts";
 import { NewsChannel, TimePrecision } from "../src/news.ts";
@@ -206,6 +207,8 @@ function setup() {
     structuredClone(bars.daily)
   );
 
+  const closes = vi.fn<MarketReturns["closes"]>(async () => []);
+
   const quarters = { newest: "2026-06-30" };
 
   const statements = vi.fn(async () => [
@@ -225,6 +228,7 @@ function setup() {
   const desk = new ResearchDesk({
     store,
     marketData: { candles },
+    marketReturns: { closes },
     fundamentals: { statements },
     onChange,
     now: () => clock.now,
@@ -244,6 +248,7 @@ function setup() {
     clock,
     bars,
     candles,
+    closes,
     quarters,
     statements,
     onChange,
@@ -505,44 +510,43 @@ test("coverage settles a forecast once its horizon has closed, and keeps the out
   expect(candles).toHaveBeenCalledWith(TSMC, Interval.OneDay);
 });
 
-test("coverage measures each stretch of one stance against the market's index", async () => {
-  const { desk, cover, clock, candles } = setup();
+test("coverage measures each stretch of one stance against the market's index on total return", async () => {
+  const { desk, cover, clock, bars, closes } = setup();
 
-  // The listing rose 5% over the two sessions after the report was kept, and the index 1%.
-  candles.mockImplementation(async (symbol) =>
-    symbol.symbol === TSMC.symbol
-      ? [ANCHOR_BAR, bar("2026-09-30", 1010), bar("2026-10-01", 1050)]
-      : [
-          bar("2026-09-29", 20000),
-          bar("2026-09-30", 20100),
-          bar("2026-10-01", 20200),
-        ]
-  );
+  // The listing split two for one on the second session after the report was kept and returned
+  // 5% over the two, and the index 1%.
+  bars.daily = [
+    ANCHOR_BAR,
+    bar("2026-09-30", 1010, 1000),
+    bar("2026-10-01", 525, 505),
+  ];
+
+  closes.mockResolvedValue([
+    { date: "2026-09-29", close: 20000 },
+    { date: "2026-09-30", close: 20100 },
+    { date: "2026-10-01", close: 20200 },
+  ]);
 
   await cover();
   clock.now = AFTER_HORIZON;
 
-  const { stances } = await desk.coverage(TSMC);
+  const [spell, ...rest] = (await desk.coverage(TSMC)).stances;
 
-  expect(stances).toEqual([
-    {
-      stance: ReportStance.Bullish,
-      revision: 1,
-      from: "2026-09-29",
-      until: null,
-      sessions: 2,
-      change: 1050 / 1000 - 1,
-      benchmark: 20200 / 20000 - 1,
-    },
-  ]);
-  expect(candles).toHaveBeenCalledWith(
-    { market: Market.TW, symbol: "IX0001" },
-    Interval.OneDay
-  );
+  expect(rest).toEqual([]);
+  expect(spell).toMatchObject({
+    stance: ReportStance.Bullish,
+    revision: 1,
+    from: "2026-09-29",
+    until: null,
+    sessions: 2,
+    benchmark: 20200 / 20000 - 1,
+  });
+  expect(spell.change).toBeCloseTo(0.05);
+  expect(closes).toHaveBeenCalledWith(Market.TW);
 
-  candles.mockRejectedValue(new Error("Fugle answered 503"));
+  closes.mockRejectedValue(new Error("FinMind answered 402"));
 
-  // The report still reads while the bars are out of reach.
+  // The report still reads while the index is out of reach.
   expect((await desk.coverage(TSMC)).stances).toEqual([]);
 });
 
@@ -647,6 +651,7 @@ test("claims are read against their quotes as they are kept, and stay when the m
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => bars },
+    marketReturns: { closes: async () => [] },
     fundamentals: { statements: async () => [] },
     auditor: async () => ({ audit }),
     now: () => AT_ANCHOR,
@@ -690,6 +695,7 @@ test("a report's events are read against their quotes, refused once behind the e
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
+    marketReturns: { closes: async () => [] },
     fundamentals: { statements: async () => [] },
     auditor: async () => ({ audit }),
     now: () => clock.now,
@@ -908,6 +914,7 @@ async function reading(read: FactReader["read"]) {
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => HISTORY },
+    marketReturns: { closes: async () => [] },
     fundamentals: { statements: async () => [] },
     reader: async () => ({ read }),
     now: () => AT_ANCHOR,
@@ -1002,6 +1009,7 @@ test("a forecast is checked again once its facts are read, since the report or t
   const other = new ResearchDesk({
     store: raced.store,
     marketData: { candles: async () => HISTORY },
+    marketReturns: { closes: async () => [] },
     fundamentals: { statements: async () => [] },
     now: () => AT_ANCHOR,
   });
@@ -1123,6 +1131,7 @@ function watching({
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
+    marketReturns: { closes: async () => [] },
     fundamentals: { statements: async () => [] },
     auditor: async () => (audited ? { audit } : undefined),
     embedder: () => embedder ?? undefined,
@@ -1371,6 +1380,7 @@ test("a search finds by meaning what shares no word with the query, beside what 
   const desk = new ResearchDesk({
     store,
     marketData: { candles: async () => [ANCHOR_BAR] },
+    marketReturns: { closes: async () => [] },
     fundamentals: { statements: async () => [] },
     embedder: () => ({
       space: "local",

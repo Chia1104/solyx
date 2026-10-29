@@ -29,8 +29,8 @@ import type {
   ForecastViolation,
 } from "./forecast.ts";
 import type { Fundamentals } from "./fundamentals.ts";
-import type { MarketData } from "./market-data.ts";
-import { BENCHMARK, exchangeDate, symbolKey } from "./market.ts";
+import type { MarketData, MarketReturns } from "./market-data.ts";
+import { exchangeDate, symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
 import { storyText } from "./news.ts";
 import type { NewsItem, NewsRecord } from "./news.ts";
@@ -148,6 +148,8 @@ const checkKey = (falsifier: string, source: string, item: string) =>
 export interface ResearchDeskOptions {
   store: ResearchStore;
   marketData: Pick<MarketData, "candles">;
+  /** Each market's index on total return, which a report's stance is measured against. */
+  marketReturns: Pick<MarketReturns, "closes">;
   fundamentals: Pick<Fundamentals, "statements">;
   /** Reads each claim against its quote as it is kept; none until the user sets up a decisions model. */
   auditor?: () => Promise<ClaimAuditor | undefined>;
@@ -212,7 +214,7 @@ export interface Coverage {
   signals: FalsifierCheck[];
   /** Whether the news is read against the report's falsifiers; `null` while it has none. */
   watch: FalsifierWatch | null;
-  /** Each stretch the report kept one stance, oldest first, against its market's index; none while the bars cannot be read. */
+  /** Each stretch the report kept one stance, oldest first, against its market's index on total return; none while the bars or the index cannot be read. */
   stances: StanceSpell[];
 }
 
@@ -856,9 +858,9 @@ export class ResearchDesk {
     }
   }
 
-  /** Each stretch the listing's report kept one stance, against its market's index. */
+  /** Each stretch the listing's report kept one stance, against its market's index on total return. */
   async #stances(symbol: SymbolRef): Promise<StanceSpell[]> {
-    const { store, marketData } = this.#options;
+    const { store, marketData, marketReturns } = this.#options;
     const revisions = store.reports(symbol);
 
     if (revisions.length === 0) return [];
@@ -866,12 +868,12 @@ export class ResearchDesk {
     try {
       const [daily, benchmark] = await Promise.all([
         marketData.candles(symbol, Interval.OneDay),
-        marketData.candles(BENCHMARK[symbol.market].symbol, Interval.OneDay),
+        marketReturns.closes(symbol.market),
       ]);
 
       return stanceSpells(revisions, daily, benchmark);
     } catch {
-      // Bars can be out of reach; the report still reads without how its stance has done.
+      // Bars or the index can be out of reach; the report still reads without how its stance has done.
       return [];
     }
   }
