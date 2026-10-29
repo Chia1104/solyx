@@ -1,4 +1,4 @@
-import { delay, noop } from "es-toolkit";
+import { noop } from "es-toolkit";
 import ky from "ky";
 import * as z from "zod";
 
@@ -30,8 +30,9 @@ const REQUESTS_PER_SECOND = 10;
 
 const CONCURRENT_REQUESTS = 5;
 
-// Its HTTP API refuses more than one request each 0.2 seconds within that.
-const HTTP_REQUESTS_PER_SECOND = 5;
+// Its HTTP API takes far less, counted across every endpoint: requests a quarter of a second apart
+// go through, while ones closer, or a few at once, are refused with a pause to wait.
+const HTTP_GAP_MS = 250;
 
 // The server counts requests as they arrive, which the network may bunch, so each second is
 // counted a little longer here.
@@ -98,10 +99,18 @@ type Envelope = z.infer<typeof envelopeSchema>;
 
 const otpSchema = z.object({ otp: z.string() });
 
-/** The pause a 429's `Retry-After` asks for in seconds; `null` where it names none or more than is waited out. */
-function retryAfter(response: Response): number | null {
-  const seconds = Number(response.headers.get("retry-after") ?? Number.NaN);
-  const ms = seconds * 1000;
+/**
+ * The pause a 429 asks for, by its `Retry-After` header or else its message, which names it as
+ * "please retry after: 0.8s" or "請 0.2 秒後重試"; `null` where it names none or more than is
+ * waited out.
+ */
+function retryAfter(response: Response, message: string): number | null {
+  const named =
+    response.headers.get("retry-after") ??
+    /retry after:?\s*([\d.]+)\s*s/i.exec(message)?.[1] ??
+    /([\d.]+)\s*秒後重試/.exec(message)?.[1];
+
+  const ms = Number(named ?? Number.NaN) * 1000;
 
   return Number.isFinite(ms) && ms >= 0 && ms <= MAX_RETRY_AFTER_MS ? ms : null;
 }
@@ -200,7 +209,7 @@ export function createLongbridge({
     windowMs: RATE_WINDOW_MS,
   });
 
-  const httpLane = budget.lane(HTTP_REQUESTS_PER_SECOND);
+  const httpLane = budget.lane(REQUESTS_PER_SECOND, { gapMs: HTTP_GAP_MS });
 
   // Each command's pace, as the server last told a connection of this sign-in.
   const lanes = new Map<number, Lane>();
@@ -216,11 +225,28 @@ export function createLongbridge({
     }
   }
 
-  /** `attempt`, tried again after a growing pause, or the pause Longbridge asks for, while it is refused as too fast. */
-  async function paced<T>(attempt: () => Promise<T>): Promise<T> {
+  /** A command's lane, at Longbridge's documented pace until the server tells its own. */
+  function laneOf(command: Command): Lane {
+    const kept = lanes.get(command);
+
+    if (kept) return kept;
+
+    const lane = budget.lane(REQUESTS_PER_SECOND);
+
+    lanes.set(command, lane);
+
+    return lane;
+  }
+
+  /**
+   * `attempt` within `lane`, asked again while it is refused as too fast, a few times: the lane
+   * holds every request of its kind back for the pause Longbridge names, or else a growing one,
+   * since the next would be refused too.
+   */
+  async function paced<T>(lane: Lane, attempt: () => Promise<T>): Promise<T> {
     for (let tries = 0; ; tries += 1) {
       try {
-        return await attempt();
+        return await budget.run(lane, attempt);
       } catch (error) {
         if (
           !(error instanceof LongbridgeError) ||
@@ -231,7 +257,10 @@ export function createLongbridge({
         }
 
         onRateLimited?.(error);
-        await delay(error.retryAfterMs ?? RATE_LIMITED_PAUSE_MS * (tries + 1));
+        budget.pause(
+          lane,
+          error.retryAfterMs ?? RATE_LIMITED_PAUSE_MS * (tries + 1)
+        );
       }
     }
   }
@@ -262,10 +291,12 @@ export function createLongbridge({
     ).data;
 
     if (response.status === 429) {
+      const reason = envelope?.message ?? "HTTP 429";
+
       throw new LongbridgeError(
-        `Longbridge refused ${what}: ${envelope?.message ?? "HTTP 429"}`,
+        `Longbridge refused ${what}: ${reason}`,
         envelope?.code ?? null,
-        { rateLimited: true, retryAfterMs: retryAfter(response) }
+        { rateLimited: true, retryAfterMs: retryAfter(response, reason) }
       );
     }
 
@@ -527,10 +558,8 @@ export function createLongbridge({
     async read(path, searchParams, schema, what, language = LANGUAGE) {
       const token = await accessToken();
 
-      const { status, envelope } = await paced(() =>
-        budget.run(httpLane, () =>
-          get(path, token, what, { searchParams, language })
-        )
+      const { status, envelope } = await paced(httpLane, () =>
+        get(path, token, what, { searchParams, language })
       );
 
       if (!envelope) {
@@ -556,14 +585,13 @@ export function createLongbridge({
     },
 
     // The connection opens first, since it tells each command's pace.
-    request: (command, body) =>
-      paced(async () => {
-        await connection();
+    async request(command, body) {
+      await connection();
 
-        return budget.run(lanes.get(command) ?? null, async () =>
-          (await connection()).call(command, body)
-        );
-      }),
+      return paced(laneOf(command), async () =>
+        (await connection()).call(command, body)
+      );
+    },
 
     onPush: (listener) => listen(pushListeners, listener),
 

@@ -162,8 +162,12 @@ const FOLLOWED: readonly Followed[] = [
 // Its names in English, which tell a series' measure apart where its Chinese names of several read alike.
 const LANGUAGE = "en";
 
-// The most points it answers a request, two years of a weekly series.
+// The most points it answers a request: two years of a weekly series, eight of a monthly one.
 const LIMIT = 100;
+
+// A window reads the schedule and the figures together, both from the same series, so one read
+// serves both for a while.
+const SHARED_MS = 5 * 60_000;
 
 /** A period's release: what came out, what was expected and when, each figure as decimal text, empty until known. */
 const pointSchema = z.object({
@@ -215,6 +219,8 @@ function periodOf(observed: string, released: Date, cycle: Cycle): string {
 export interface LongbridgeMacroOptions {
   /** The sign-in's HTTP API, which rejects while signed out. */
   api: Pick<Longbridge, "read">;
+  /** @default Date.now */
+  now?: () => number;
 }
 
 /**
@@ -224,15 +230,13 @@ export interface LongbridgeMacroOptions {
  */
 export function createLongbridgeMacro({
   api,
+  now = Date.now,
 }: LongbridgeMacroOptions): MacroCalendarProvider & MacroFiguresProvider {
-  /** A series' points released from `since`, a day, on, oldest first. */
-  async function points(
-    { code, name, cycle }: Followed,
-    since: string
-  ): Promise<Point[]> {
+  /** A series' newest points, oldest first. */
+  async function points({ code, name, cycle }: Followed): Promise<Point[]> {
     const { indicator } = await api.read(
       `/v2/quote/macrodata/${code}`,
-      { start_date: since, limit: String(LIMIT), sort: "desc" },
+      { limit: String(LIMIT), sort: "desc" },
       historySchema,
       `the figures of ${name}`,
       LANGUAGE
@@ -261,14 +265,35 @@ export function createLongbridgeMacro({
     return sortBy(read, [({ released }) => released.getTime()]);
   }
 
-  /** Every followed series' points from `since` on, each beside the series it is of. */
-  const everyPoint = (since: string) =>
-    Promise.all(
+  let shared:
+    | {
+        at: number;
+        read: Promise<{ followed: Followed; points: Point[] }[]>;
+      }
+    | undefined;
+
+  /** Every followed series' newest points, each beside the series it is of, read once for the schedule and the figures alike. */
+  function everyPoint() {
+    const at = now();
+
+    if (shared && at - shared.at < SHARED_MS) return shared.read;
+
+    const read = Promise.all(
       FOLLOWED.map(async (followed) => ({
         followed,
-        points: await points(followed, since),
+        points: await points(followed),
       }))
     );
+
+    shared = { at, read };
+
+    // A read that failed is asked again by the next caller rather than kept.
+    read.catch(() => {
+      if (shared?.read === read) shared = undefined;
+    });
+
+    return read;
+  }
 
   return {
     id: "longbridge-macro",
@@ -277,7 +302,7 @@ export function createLongbridgeMacro({
     async releases(market, since) {
       if (market !== Market.US) return [];
 
-      const released = (await everyPoint(since)).flatMap(
+      const released = (await everyPoint()).flatMap(
         ({ followed, points: read }) =>
           read.map((point) => ({
             followed,
@@ -316,10 +341,15 @@ export function createLongbridgeMacro({
     async series(market, since) {
       if (market !== Market.US) return [];
 
-      return (await everyPoint(`${since}-01`)).map(
+      const first = `${since}-01`;
+
+      return (await everyPoint()).map(
         ({ followed, points: read }): MacroSeries => {
-          const observations = read.flatMap(({ period, actual, forecast }) =>
-            actual === null ? [] : [{ period, value: actual, forecast }]
+          const observations = read.flatMap(
+            ({ period, released, actual, forecast }) =>
+              actual === null || exchangeDate(Market.US, released) < first
+                ? []
+                : [{ period, value: actual, forecast }]
           );
 
           if (observations.length === 0) {

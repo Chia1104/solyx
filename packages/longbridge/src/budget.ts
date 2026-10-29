@@ -2,8 +2,24 @@
 export interface Lane {
   /** Requests that may start within one window. */
   readonly limit: number;
+  /** The least time between two of its starts, for a server that takes no burst of them. */
+  readonly gapMs: number;
   /** When its requests in the window started, oldest first. */
   readonly starts: number[];
+  /** Until when none of its requests may start, as the server asked after refusing one. */
+  pausedUntil: number;
+}
+
+/** When `lane` lets its next request start at `at` or later; `at` itself while it is free. */
+function laneFree(lane: Lane, at: number, windowMs: number): number {
+  const last = lane.starts.at(-1);
+
+  return Math.max(
+    at,
+    lane.pausedUntil,
+    last === undefined ? at : last + lane.gapMs,
+    lane.starts.length >= lane.limit ? lane.starts[0] + windowMs : at
+  );
 }
 
 export interface BudgetOptions {
@@ -55,7 +71,7 @@ export function createBudget({
 
       if (lane) forget(lane.starts, at);
 
-      if (lane && lane.starts.length >= lane.limit) {
+      if (lane && laneFree(lane, at, windowMs) > at) {
         index += 1;
         continue;
       }
@@ -73,12 +89,14 @@ export function createBudget({
     // A slot frees as a request settles, which pumps again; only a pace needs the clock.
     if (waiting.length === 0 || running >= concurrency) return;
 
-    const paced = [
-      starts.length >= limit ? starts : [],
-      ...waiting.map(({ lane }) => lane?.starts ?? []),
-    ].filter((kept) => kept.length > 0);
-
-    const next = Math.min(...paced.map((kept) => kept[0] + windowMs));
+    const next =
+      starts.length >= limit
+        ? starts[0] + windowMs
+        : Math.min(
+            ...waiting.flatMap(({ lane }) =>
+              lane ? [laneFree(lane, at, windowMs)] : []
+            )
+          );
 
     if (Number.isFinite(next)) {
       timer = setTimeout(pump, Math.max(0, next - at));
@@ -86,8 +104,22 @@ export function createBudget({
   }
 
   return {
-    /** A lane that keeps to `limit` requests a window within the budget. */
-    lane: (laneLimit: number): Lane => ({ limit: laneLimit, starts: [] }),
+    /** A lane that keeps to `limit` requests a window within the budget, each `gapMs` at least after the one before. */
+    lane: (
+      laneLimit: number,
+      { gapMs = 0 }: { gapMs?: number } = {}
+    ): Lane => ({
+      limit: laneLimit,
+      gapMs,
+      starts: [],
+      pausedUntil: 0,
+    }),
+
+    /** Holds every request of `lane` back for `ms`, as a server asks after refusing one. */
+    pause(lane: Lane, ms: number) {
+      lane.pausedUntil = Math.max(lane.pausedUntil, now() + ms);
+      pump();
+    },
 
     /** Runs `task` once the budget and `lane` let it go out, holding its slot until it settles. */
     run<T>(lane: Lane | null, task: () => Promise<T>): Promise<T> {

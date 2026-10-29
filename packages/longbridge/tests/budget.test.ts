@@ -93,3 +93,32 @@ test("a task's failure reaches its caller and frees its slot", async () => {
 
   await expect(budget.run(null, async () => "next")).resolves.toBe("next");
 });
+
+test("a lane with a gap starts its requests that far apart, and a pause holds it back", async () => {
+  const budget = createBudget({ limit: 10, concurrency: 5, windowMs: 1000 });
+  const spaced = budget.lane(10, { gapMs: 200 });
+  const started: number[] = [];
+
+  const run = () =>
+    budget.run(spaced, async () => {
+      started.push(Date.now());
+    });
+
+  const start = Date.now();
+
+  void run();
+  void run();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(started.map((at) => at - start)).toEqual([0]);
+
+  await vi.advanceTimersByTimeAsync(200);
+  expect(started.map((at) => at - start)).toEqual([0, 200]);
+
+  budget.pause(spaced, 500);
+  void run();
+  await vi.advanceTimersByTimeAsync(499);
+  expect(started).toHaveLength(2);
+
+  await vi.advanceTimersByTimeAsync(1);
+  expect(started.map((at) => at - start)).toEqual([0, 200, 700]);
+});

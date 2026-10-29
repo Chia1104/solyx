@@ -359,22 +359,44 @@ describe("the budget", () => {
 
     const { sockets, reads, longbridge, listing } = setup(APPLE_INFO);
 
+    // The connection is open, so every request below waits on the budget alone.
+    await listing();
+
     const done = Promise.all([
-      ...Array.from({ length: 4 }, (_, index) =>
-        longbridge.read(`/v1/read/${index}`, {}, z.unknown(), "a read")
-      ),
-      ...Array.from({ length: 8 }, () => listing()),
+      longbridge.read("/v1/read", {}, z.unknown(), "a read"),
+      ...Array.from({ length: 10 }, () => listing()),
     ]);
 
-    await until(
-      () => reads.length + (sockets[0] ? askedOf(sockets[0]).length : 0) >= 10
-    );
-    await vi.advanceTimersByTimeAsync(1099);
+    // The listing that opened the connection counts within the same second.
+    await until(() => reads.length + askedOf(sockets[0]).length >= 10);
+    await vi.advanceTimersByTimeAsync(1098);
     expect(reads.length + askedOf(sockets[0]).length).toBe(10);
 
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(2);
     await done;
     expect(reads.length + askedOf(sockets[0]).length).toBe(12);
+  });
+
+  test("reads go out a quarter of a second apart, since Longbridge's HTTP API takes no burst", async () => {
+    fakeClock();
+
+    const { reads, longbridge } = setup(() => undefined);
+
+    const done = Promise.all(
+      Array.from({ length: 3 }, (_, index) =>
+        longbridge.read(`/v1/read/${index}`, {}, z.unknown(), "a read")
+      )
+    );
+
+    await until(() => reads.length >= 1);
+    await vi.advanceTimersByTimeAsync(249);
+    expect(reads).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await until(() => reads.length >= 2);
+    await vi.advanceTimersByTimeAsync(250);
+    await done;
+    expect(reads).toHaveLength(3);
   });
 
   test("no more than five wait for an answer at once, over HTTP and to the quote server alike", async () => {
@@ -462,28 +484,71 @@ describe("the budget", () => {
     expect(askedOf(sockets[0])).toHaveLength(5);
   });
 
-  test("a read refused with a 429 waits the pause Longbridge names", async () => {
-    const limited = "已達到 1S 區間調用上限，請 0.2 秒後重試";
-    let refusals = 2;
+  test("a read refused with a 429 holds every read back for the pause its message names", async () => {
+    fakeClock();
+
+    const limited =
+      "rate limit of 1-second interval has been reached, please retry after: 0.8s";
+
+    let refusals = 1;
 
     const { reads, rateLimited, longbridge } = setup(() => undefined, {
-      http: () =>
-        refusals-- > 0
+      http: ({ path }) =>
+        path === "/v1/first" && refusals-- > 0
           ? Response.json(
-              { code: 429_001, message: limited, data: null },
-              { status: 429, headers: { "retry-after": "0" } }
+              { code: 429_002, message: limited, data: null },
+              { status: 429 }
             )
           : Response.json({ code: 0, message: "success", data: { ok: 1 } }),
     });
 
-    await expect(
-      longbridge.read("/v1/read", {}, z.object({ ok: z.number() }), "a read")
-    ).resolves.toEqual({ ok: 1 });
-    expect(reads).toHaveLength(3);
+    const first = longbridge.read(
+      "/v1/first",
+      {},
+      z.object({ ok: z.number() }),
+      "a read"
+    );
+
+    await until(() => rateLimited.length >= 1);
+
+    const second = longbridge.read("/v1/second", {}, z.unknown(), "another");
+
+    await vi.advanceTimersByTimeAsync(799);
+    expect(reads.map(({ path }) => path)).toEqual(["/v1/first"]);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(first).resolves.toEqual({ ok: 1 });
+    await vi.advanceTimersByTimeAsync(250);
+    await second;
+    expect(reads.map(({ path }) => path)).toEqual([
+      "/v1/first",
+      "/v1/first",
+      "/v1/second",
+    ]);
     expect(rateLimited.map(({ message }) => message)).toEqual([
       `Longbridge refused a read: ${limited}`,
-      `Longbridge refused a read: ${limited}`,
     ]);
+  });
+
+  test("reads Longbridge's pause from its Chinese message too", async () => {
+    let refusals = 1;
+
+    const { reads, longbridge } = setup(() => undefined, {
+      http: () =>
+        refusals-- > 0
+          ? Response.json(
+              {
+                code: 429_001,
+                message: "已達到 1S 區間調用上限，請 0 秒後重試",
+                data: null,
+              },
+              { status: 429 }
+            )
+          : Response.json({ code: 0, message: "success", data: {} }),
+    });
+
+    await longbridge.read("/v1/read", {}, z.unknown(), "a read");
+    expect(reads).toHaveLength(2);
   });
 });
 
