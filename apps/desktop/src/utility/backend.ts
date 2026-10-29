@@ -23,6 +23,7 @@ import { createBackendHost } from "./backend-host.ts";
 import type { BackendHost } from "./backend-host.ts";
 import { BackendMessageKind, backendContract } from "./backend.contract.ts";
 import type { BackendMessage, BackendStart } from "./backend.contract.ts";
+import { leaveFatalError } from "./crash-log.ts";
 import type { hostContract } from "./host.contract.ts";
 
 /** The main process scrubs a report and sends it only once the user agrees. */
@@ -77,6 +78,11 @@ function start(
     // Otherwise every request the backend makes carries Sentry's trace headers.
     init({ tracePropagationTargets: [] });
   }
+
+  // A monitor, so the process still ends as it would have, by Sentry's handler or Node's.
+  process.on("uncaughtExceptionMonitor", (error) =>
+    leaveFatalError(started.dataDir, started.homeDir, error)
+  );
 
   const client: RouterContractClient<typeof hostContract> = createORPCClient(
     new RPCLink({ port: hostPort })

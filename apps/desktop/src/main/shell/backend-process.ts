@@ -7,6 +7,7 @@ import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/message-port";
 import { MessageChannelMain, app, shell, utilityProcess } from "electron";
 import type { MessagePortMain, UtilityProcess } from "electron";
+import { delay } from "es-toolkit";
 
 import { keepMessages } from "@solyx/backend/rpc/messages";
 
@@ -16,6 +17,7 @@ import type {
   BackendStart,
   backendContract,
 } from "../../utility/backend.contract.ts";
+import { clearFatalError } from "../../utility/crash-log.ts";
 import { hostContract } from "../../utility/host.contract.ts";
 
 import { appChannel } from "./app-channel.ts";
@@ -30,10 +32,23 @@ import { forkUtility } from "./utility-process.ts";
 // Main is bundled into dist/main, next to dist/utility.
 const BACKEND_ENTRY = join(import.meta.dirname, "../utility/backend.mjs");
 
+/** Electron names the backend's process by it as it says why the process ended. */
+const SERVICE_NAME = "Backend";
+
+// Electron says why a utility process ended just after its exit, and nothing for a clean exit.
+const REASON_WAIT_MS = 1000;
+
 /** Why the backend would not start, as a dialog says it. */
 export interface Refusal {
   title: string;
   body: string;
+}
+
+/** How the backend's process ended. */
+export interface BackendEnding {
+  code: number;
+  /** Electron's reason, such as `abnormal-exit` or `crashed`; `null` for a clean exit. */
+  reason: Electron.Details["reason"] | null;
 }
 
 /**
@@ -43,9 +58,33 @@ export interface Refusal {
  * for, Fubon's and the kernel's.
  */
 export function startBackend(windows: Windows, configFile: string) {
+  clearFatalError(app.getPath("userData"));
+
   const child = utilityProcess.fork(BACKEND_ENTRY, [], {
-    serviceName: "Backend",
+    serviceName: SERVICE_NAME,
   });
+
+  const gone = new Promise<Electron.Details>((resolve) => {
+    const listener = (_event: Electron.Event, details: Electron.Details) => {
+      if (details.type !== "Utility" || details.name !== SERVICE_NAME) return;
+
+      app.off("child-process-gone", listener);
+      resolve(details);
+    };
+
+    app.on("child-process-gone", listener);
+  });
+
+  async function reasonFor(code: number) {
+    if (code === 0) return null;
+
+    const details = await Promise.race([
+      gone,
+      delay(REASON_WAIT_MS).then(() => undefined),
+    ]);
+
+    return details?.reason ?? null;
+  }
 
   const post = (message: BackendMessage, ports: MessagePortMain[]) =>
     child.postMessage(message, ports);
@@ -181,9 +220,11 @@ export function startBackend(windows: Windows, configFile: string) {
     connectWindow(window: number, port: MessagePortMain) {
       post({ kind: BackendMessageKind.Window, window }, [port]);
     },
-    /** Calls `listener` once the backend's process ends, with its exit code. */
-    onExit(listener: (code: number) => void) {
-      child.once("exit", listener);
+    /** Calls `listener` once the backend's process ends, with how it ended. */
+    onExit(listener: (ending: BackendEnding) => void) {
+      child.once("exit", (code) => {
+        void reasonFor(code).then((reason) => listener({ code, reason }));
+      });
     },
     send,
   };
