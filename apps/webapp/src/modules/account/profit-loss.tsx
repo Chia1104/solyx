@@ -27,6 +27,7 @@ import {
 } from "./position-figures.tsx";
 import { WatchedExits, sellableOf } from "./positions-table.tsx";
 import { RealizedTrend } from "./realized-trend.tsx";
+import { TwdTotal } from "./twd-total.tsx";
 
 /** The market whose prices a currency's figures move with, for the colours of their direction. */
 const marketOf = (currency: Currency) =>
@@ -287,6 +288,7 @@ export function ProfitLoss() {
               cash={data.cash[currency]}
             />
           ))}
+          <TwdTotal cash={data.cash} positions={data.positions} />
         </div>
       </PaneSection>
       <PaneSection title={t("account.positions")} count={data.positions.length}>

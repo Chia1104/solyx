@@ -35,6 +35,7 @@ import { createFinMind } from "@solyx/fundamentals/finmind";
 import { createLongbridgeFundamentals } from "@solyx/fundamentals/longbridge";
 import { createSitca } from "@solyx/fundamentals/sitca";
 import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
+import { createCbc } from "@solyx/macro/cbc";
 import { createDgbas } from "@solyx/macro/dgbas";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
@@ -447,6 +448,7 @@ export function createServices(config: ConfigFile, host: Host) {
   const macro = createMacro({
     calendars: [createStatGovTw({ fetch: host.chromiumFetch })],
     figures: [createDgbas()],
+    exchangeRates: createCbc(),
     answers: cache.answers,
   });
 

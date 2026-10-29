@@ -290,6 +290,7 @@ async function runRequest(request: StrategyRequest) {
     marketData,
     watchlist: () => [],
     news: { collect: unavailable("News") },
+    exchangeRate: unavailable("The exchange rate"),
     tradingDays: async () => weekdays,
     searchListings: async () => ({ matches: [], unread: [] }),
     calendar: async () => ({

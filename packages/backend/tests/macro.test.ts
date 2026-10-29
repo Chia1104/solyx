@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 
+import type { ExchangeRateProvider } from "@solyx/core/exchange-rate";
 import type {
   MacroCalendarProvider,
   MacroFiguresProvider,
@@ -26,14 +27,23 @@ function setup() {
     series: vi.fn<MacroFiguresProvider["series"]>(async () => []),
   };
 
+  const rates = {
+    id: "fake-rates",
+    latest: vi.fn<ExchangeRateProvider["latest"]>(async () => ({
+      date: "2026-10-07",
+      twdPerUsd: 32.4,
+    })),
+  };
+
   const macro = createMacro({
     calendars: [calendar],
     figures: [database],
+    exchangeRates: rates,
     answers: memoryAnswers(),
     now: () => new Date(clock.now),
   });
 
-  return { clock, calendar, database, macro };
+  return { clock, calendar, database, rates, macro };
 }
 
 test("a market's schedule is read from a week back, so releases just out stay on it, and twice a day at most", async () => {
@@ -92,4 +102,30 @@ test("a read that fails is asked again on the next call", async () => {
   await expect(macro.series(Market.TW)).rejects.toThrow("DGBAS answered 503");
   expect(await macro.series(Market.TW)).toEqual([]);
   expect(database.series).toHaveBeenCalledTimes(2);
+});
+
+test("the exchange rate is read every three hours at most, and the last one read stands while its source fails", async () => {
+  const { clock, rates, macro } = setup();
+
+  await expect(macro.exchangeRate()).resolves.toEqual({
+    date: "2026-10-07",
+    twdPerUsd: 32.4,
+  });
+
+  clock.now += 3 * HOUR_MS - 1;
+  await macro.exchangeRate();
+
+  expect(rates.latest).toHaveBeenCalledTimes(1);
+
+  clock.now += 1;
+  rates.latest.mockRejectedValueOnce(
+    new Error("The central bank answered 503")
+  );
+
+  await expect(macro.exchangeRate()).resolves.toEqual({
+    date: "2026-10-07",
+    twdPerUsd: 32.4,
+  });
+
+  expect(rates.latest).toHaveBeenCalledTimes(2);
 });

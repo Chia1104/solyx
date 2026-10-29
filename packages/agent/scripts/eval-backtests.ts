@@ -442,6 +442,7 @@ async function runRequest(request: BacktestRequest): Promise<Run> {
       unreadMarkets: [],
     }),
     figures: async () => [],
+    exchangeRate: unavailable("The exchange rate"),
     desk,
     links: LINKS,
     skills,

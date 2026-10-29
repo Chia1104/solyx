@@ -173,6 +173,11 @@ function setup(candles: Candle[] = dailyBars(80)) {
 
   const figures = vi.fn<TradingToolPorts["figures"]>(async () => []);
 
+  const exchangeRate = vi.fn<TradingToolPorts["exchangeRate"]>(async () => ({
+    date: "2026-10-07",
+    twdPerUsd: 32.5,
+  }));
+
   const searchListings = vi.fn<TradingToolPorts["searchListings"]>(
     async () => ({ matches: [], unread: [] })
   );
@@ -185,6 +190,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     searchListings,
     calendar,
     figures,
+    exchangeRate,
     desk,
     links: LINKS,
     skills: async () => [
@@ -225,6 +231,7 @@ function setup(candles: Candle[] = dailyBars(80)) {
     searchListings,
     calendar,
     figures,
+    exchangeRate,
   };
 }
 
@@ -534,6 +541,38 @@ test("the account tells how its closed round trips went by the stance they were 
   expect(text).toContain("- TWD no report: 1 trips, 0 won (0.0%)");
   expect(text).toContain("working orders:\nnone");
   expect(desk.fills).toHaveBeenCalledWith(0);
+});
+
+test("an account holding US dollars gives the rate and its cash in all at it, and one holding none reads no rate", async () => {
+  const { run, desk, exchangeRate } = setup();
+
+  desk.account.mockResolvedValueOnce({
+    cash: { TWD: 500_000, USD: 10_000 },
+    positions: [],
+  });
+
+  const { text } = await run(AgentToolName.GetAccount, {});
+
+  expect(text).toContain(
+    "USD/TWD 32.5, the interbank close of 2026-10-07 as Taiwan's central bank published it; cash in all at it: TWD 825000."
+  );
+
+  exchangeRate.mockRejectedValueOnce(
+    new Error("The central bank answered 503")
+  );
+  desk.account.mockResolvedValueOnce({
+    cash: { TWD: 500_000, USD: null },
+    positions: [],
+  });
+
+  expect((await run(AgentToolName.GetAccount, {})).text).toContain(
+    "USD/TWD could not be read (The central bank answered 503)."
+  );
+
+  exchangeRate.mockClear();
+  await run(AgentToolName.GetAccount, {});
+
+  expect(exchangeRate).not.toHaveBeenCalled();
 });
 
 test("the account names each order of the day that may still fill", async () => {

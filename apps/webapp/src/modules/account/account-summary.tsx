@@ -12,6 +12,7 @@ import { Section } from "../../components/section.tsx";
 import { numberFormats } from "../market/number-formats.ts";
 
 import { PositionsTable } from "./positions-table.tsx";
+import { TwdTotal } from "./twd-total.tsx";
 import { WorkingOrders } from "./working-orders.tsx";
 
 /** The account's cash, positions and working orders, only `market`'s and its currency's where one is picked. */
@@ -54,6 +55,7 @@ export function AccountSummary({ market }: { market: Market | null }) {
               </div>
             ))}
           </dl>
+          <TwdTotal cash={data.cash} positions={data.positions} />
           <PositionsTable positions={data.positions} />
           <WorkingOrders market={market} />
         </div>

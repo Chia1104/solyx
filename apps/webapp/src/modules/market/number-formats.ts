@@ -51,6 +51,8 @@ export const numberFormats = memoize((locale: string) => ({
   }),
   /** A sum of money, such as what an order spends. */
   amount: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }),
+  /** A sum converted at an exchange rate, whose fractions it does not hold. */
+  wholeAmount: new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }),
   /** A signed sum of money, such as a holding's gain. */
   signedAmount: new Intl.NumberFormat(locale, {
     signDisplay: "exceptZero",

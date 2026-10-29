@@ -1,12 +1,14 @@
-import { useQueries } from "@tanstack/react-query";
-import { sum } from "es-toolkit";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { sum, uniq } from "es-toolkit";
 import { useTranslation } from "react-i18next";
 
-import { Market, symbolKey } from "@solyx/core/market";
+import { inTwd } from "@solyx/core/exchange-rate";
+import { Market, currencyOf, symbolKey } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
 import { quoteChange } from "@solyx/core/quote";
 
 import { HeatMap } from "../../components/heat-map.tsx";
+import { exchangeRateQuery } from "../macro/macro-query.ts";
 
 import { useListingNames } from "./listing-name.tsx";
 import { numberFormats } from "./number-formats.ts";
@@ -22,7 +24,7 @@ export interface QuoteHeatMapGroup {
   label: string;
   tiles: {
     symbol: SymbolRef;
-    /** Shares held, which size the tile by market value; tiles without share their group equally. */
+    /** Shares held, which size the tile by market value, in Taiwan dollars where its group holds both currencies; tiles without share their group equally. */
     shares?: number;
   }[];
 }
@@ -41,6 +43,15 @@ export function QuoteHeatMap({ groups }: { groups: QuoteHeatMapGroup[] }) {
     group.tiles.map((tile) => tile.symbol)
   );
 
+  /** Whether a group's tiles are priced in more than one currency, so their values must be put in one. */
+  const mixed = (group: QuoteHeatMapGroup) =>
+    uniq(group.tiles.map(({ symbol }) => currencyOf(symbol.market))).length > 1;
+
+  const rate = useQuery({
+    ...exchangeRateQuery(),
+    enabled: groups.some(mixed),
+  }).data;
+
   const quotes = useQueries({
     queries: symbols.map((symbol) => quoteQuery(symbol)),
   });
@@ -58,20 +69,34 @@ export function QuoteHeatMap({ groups }: { groups: QuoteHeatMapGroup[] }) {
   return (
     <HeatMap
       groups={groups.map((group) => {
+        const inOne = mixed(group);
+
         const tiles = group.tiles.map((tile) => {
           const quote = quoteOf.get(symbolKey(tile.symbol));
           const moved = quote ? quoteChange(quote) : null;
+
+          const worth =
+            tile.shares === undefined || !quote
+              ? null
+              : tile.shares * quote.last;
 
           return {
             symbol: tile.symbol,
             name: nameOf.get(symbolKey(tile.symbol)),
             moved,
             value:
-              tile.shares === undefined ? 1 : tile.shares * (quote?.last ?? 0),
+              worth === null || !inOne
+                ? worth
+                : rate
+                  ? inTwd(worth, currencyOf(tile.symbol.market), rate)
+                  : null,
           };
         });
 
-        const total = sum(tiles.map((tile) => tile.value));
+        // Equal shares until every price that weighs them, and the rate between them, has arrived.
+        const total = tiles.every(({ value }) => value !== null)
+          ? sum(tiles.map(({ value }) => value ?? 0))
+          : 0;
 
         return {
           id: group.id,
@@ -84,8 +109,7 @@ export function QuoteHeatMap({ groups }: { groups: QuoteHeatMapGroup[] }) {
             value: moved
               ? format.quotePercentChange.format(moved.percent)
               : "—",
-            // Equal shares until the prices that weigh them arrive.
-            weight: total > 0 ? (value / total) * tiles.length : 1,
+            weight: total > 0 ? ((value ?? 0) / total) * tiles.length : 1,
             color: moved
               ? directionOf(directions[symbol.market], moved.change)?.solid
               : undefined,

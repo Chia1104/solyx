@@ -74,6 +74,7 @@ function setup(overrides: Partial<QuoteToolsOptions> = {}) {
       },
       watchlist: (): SymbolRef[] => [HON_HAI, MEDIATEK],
       desk: { account: async () => ACCOUNT },
+      exchangeRate: async () => ({ date: "2026-10-12", twdPerUsd: 32.5 }),
       now: () => NOW,
       ...overrides,
     }).tools ?? [];
@@ -112,6 +113,39 @@ test("quotes what the user holds and watches, each once, with positions marked a
     "listing,name,session,last,change,percent",
     "TW 2454,聯發科,2026-10-13,1300,+50,+4.00%",
   ]);
+});
+
+test("positions held in both currencies are worth something together in TWD at the newest rate", async () => {
+  const quotes = new Map([...QUOTES, [symbolKey(APPLE), session(250, 245)]]);
+
+  const account = {
+    cash: { TWD: 500_000, USD: 10_000 },
+    positions: [
+      { instrument: TSMC, quantity: 2000, avgPrice: 1000 },
+      { instrument: APPLE, quantity: 100, avgPrice: 200 },
+    ],
+  };
+
+  const { run } = setup({
+    quote: async (symbol) => quotes.get(symbolKey(symbol)) ?? null,
+    desk: { account: async () => account },
+  });
+
+  expect((await run({})).split("\n")).toContain(
+    "Held in all, in TWD at USD/TWD 32.5, the interbank close of 2026-10-12 as Taiwan's central bank published it: worth 2982500"
+  );
+
+  const { run: unrated } = setup({
+    quote: async (symbol) => quotes.get(symbolKey(symbol)) ?? null,
+    desk: { account: async () => account },
+    exchangeRate: async () => {
+      throw new Error("The central bank answered 503");
+    },
+  });
+
+  expect((await unrated({})).split("\n")).toContain(
+    "Held in all could not be put in TWD, since USD/TWD could not be read (The central bank answered 503)"
+  );
 });
 
 test("quotes the listings a call names, and says which have no quote", async () => {

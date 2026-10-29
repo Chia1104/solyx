@@ -11,6 +11,7 @@
     "./changes": "./src/changes.ts",
     "./council": "./src/council.ts",
     "./embedding": "./src/embedding.ts",
+    "./exchange-rate": "./src/exchange-rate.ts",
     "./flows": "./src/flows.ts",
     "./forecast": "./src/forecast.ts",
     "./fundamentals": "./src/fundamentals.ts",

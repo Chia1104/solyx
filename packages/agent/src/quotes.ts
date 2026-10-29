@@ -3,6 +3,8 @@ import type { Extension } from "@earendil-works/pi-durable";
 import { groupBy, orderBy, sumBy, uniqBy } from "es-toolkit";
 import * as z from "zod";
 
+import { inTwd } from "@solyx/core/exchange-rate";
+import type { ExchangeRate } from "@solyx/core/exchange-rate";
 import {
   Market,
   currencyOf,
@@ -21,6 +23,7 @@ import type { SessionQuote } from "@solyx/core/quote";
 import { errorMessage } from "@solyx/utils/error";
 
 import { figure, percentChange, signedFigure } from "./figures.ts";
+import { rateText } from "./macro-text.ts";
 import { defineTool } from "./tools.ts";
 import { AgentToolName } from "./wire.ts";
 
@@ -30,6 +33,8 @@ export interface QuoteToolsOptions {
   marketData: Pick<MarketData, "listing">;
   watchlist(): SymbolRef[];
   desk: Pick<ProposingDesk, "account">;
+  /** The newest close of the US dollar in Taiwan dollars, which totals held in both currencies are read at. */
+  exchangeRate(): Promise<ExchangeRate>;
   /** @default () => new Date() */
   now?: () => Date;
 }
@@ -73,6 +78,24 @@ function totalText(currency: string, held: readonly Held[]): string {
   )}`;
 }
 
+/** What the positions held in more than one currency are worth together in Taiwan dollars, or why that cannot be said. */
+async function allText(
+  held: readonly Held[],
+  exchangeRate: () => Promise<ExchangeRate>
+): Promise<string> {
+  try {
+    const rate = await exchangeRate();
+
+    const worth = sumBy(held, ({ symbol, worth: { value } }) =>
+      inTwd(value, currencyOf(symbol.market), rate)
+    );
+
+    return `Held in all, in TWD at ${rateText(rate)}: worth ${figure(worth, 0)}`;
+  } catch (error) {
+    return `Held in all could not be put in TWD, since USD/TWD could not be read (${errorMessage(error)})`;
+  }
+}
+
 /**
  * `get_quotes`: many listings' newest sessions at once, and the user's positions marked at them,
  * through the quotes the host's overview reads, so the model cites what the app computed. It
@@ -102,7 +125,7 @@ export function createQuoteTools(options: QuoteToolsOptions): Extension {
       defineTool({
         name: AgentToolName.GetQuotes,
         replay: "safe",
-        description: `Today at a glance for many listings at once, as the app's overview shows its moves: each listing's newest session against the close before it (its date, last price, change and percent), largest rise first, for everything the user holds and watches unless symbols names others. A held listing also comes with its position marked at the last price, computed by the app: shares, average price, what it is worth, its open gain against what it cost and what the session's move made of it, with each currency's totals. A session still open has not closed at its last price, and outside one the newest session is the last that traded. Each listing costs the market data source a request, so name symbols rather than quote a long watchlist for a few of them. For bars, levels and indicators read get_candles and get_indicators. Cite these rather than work them out again.`,
+        description: `Today at a glance for many listings at once, as the app's overview shows its moves: each listing's newest session against the close before it (its date, last price, change and percent), largest rise first, for everything the user holds and watches unless symbols names others. A held listing also comes with its position marked at the last price, computed by the app: shares, average price, what it is worth, its open gain against what it cost and what the session's move made of it, with each currency's totals and, where they are held in both, what they are worth together in TWD at the US dollar's newest close. A session still open has not closed at its last price, and outside one the newest session is the last that traded. Each listing costs the market data source a request, so name symbols rather than quote a long watchlist for a few of them. For bars, levels and indicators read get_candles and get_indicators. Cite these rather than work them out again.`,
         parameters: z.object({
           symbols: z
             .array(symbolRefSchema)
@@ -194,6 +217,15 @@ export function createQuoteTools(options: QuoteToolsOptions): Extension {
               : [];
           });
 
+          const byCurrency = groupBy(held, ({ symbol }) =>
+            currencyOf(symbol.market)
+          );
+
+          const all =
+            Object.keys(byCurrency).length > 1
+              ? await allText(held, options.exchangeRate)
+              : null;
+
           const others = quoted.filter(
             ({ symbol }) => !positionOf.has(symbolKey(symbol))
           );
@@ -224,9 +256,10 @@ export function createQuoteTools(options: QuoteToolsOptions): Extension {
                           : signedFigure(row.today, PRICE_DIGITS),
                       ].join(",")
                     ),
-                    ...Object.entries(
-                      groupBy(held, ({ symbol }) => currencyOf(symbol.market))
-                    ).map(([currency, rows]) => totalText(currency, rows)),
+                    ...Object.entries(byCurrency).map(([currency, rows]) =>
+                      totalText(currency, rows)
+                    ),
+                    ...(all ? [all] : []),
                   ]
                 : []),
               ...(others.length > 0
