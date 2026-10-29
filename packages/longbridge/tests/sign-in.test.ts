@@ -6,7 +6,7 @@ import {
   longbridgeAuthorizeUrl,
   refreshLongbridgeSignIn,
   registerLongbridgeClient,
-} from "../src/longbridge-sign-in.ts";
+} from "../src/sign-in.ts";
 
 const NOW = Date.parse("2026-10-28T10:00:00Z");
 

@@ -1,19 +1,17 @@
-import { gzipSync } from "node:zlib";
-
 import { BinaryReader, BinaryWriter, WireType } from "@bufbuild/protobuf/wire";
 import { noop } from "es-toolkit";
-import { afterEach, describe, expect, test, vi } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 
 import { Interval } from "@solyx/core/candles";
 import { Market } from "@solyx/core/market";
+import { LongbridgeError, createLongbridge } from "@solyx/longbridge/client";
+import { decodeError } from "@solyx/longbridge/wire";
+import type { Command } from "@solyx/longbridge/wire";
 
-import { LongbridgeError, createLongbridgeApi } from "../src/longbridge-api.ts";
 import {
   createLongbridgeMarketData,
-  createLongbridgeSocket,
   readLongbridgeSecurities,
 } from "../src/longbridge.ts";
-import type { LongbridgeWebSocket } from "../src/longbridge.ts";
 
 const APPLE = { market: Market.US, symbol: "AAPL" };
 
@@ -49,38 +47,6 @@ function refused(status: number, code: number, message: string): Answer {
   };
 }
 
-function response(
-  { command, id }: SentRequest,
-  { status, body }: Answer,
-  gzip = false
-) {
-  const payload = gzip ? new Uint8Array(gzipSync(body)) : body;
-  const packet = new Uint8Array(10 + payload.length);
-  const view = new DataView(packet.buffer);
-
-  packet[0] = gzip ? 0x22 : 0x02;
-  packet[1] = command;
-  view.setUint32(2, id);
-  packet[6] = status;
-  packet[7] = (payload.length >> 16) & 0xff;
-  packet[8] = (payload.length >> 8) & 0xff;
-  packet[9] = payload.length & 0xff;
-  packet.set(payload, 10);
-
-  return packet.buffer;
-}
-
-function readRequest(packet: Uint8Array): SentRequest {
-  const view = new DataView(packet.buffer, packet.byteOffset);
-  const length = (packet[8] << 16) | (packet[9] << 8) | packet[10];
-
-  return {
-    command: packet[1],
-    id: view.getUint32(2),
-    body: packet.slice(11, 11 + length),
-  };
-}
-
 /** A request body's text and number fields, by field number. */
 function requestFields(body: Uint8Array) {
   const reader = new BinaryReader(body);
@@ -98,132 +64,37 @@ function requestFields(body: Uint8Array) {
   return fields;
 }
 
-// The sign-in and the quote profile, which every connection asks before anything else.
-const HANDSHAKE = new Set([2, 4]);
-
-/** What a connection asked once it was open, past the sign-in and the profile. */
-const askedOf = (socket: FakeSocket) =>
-  socket.requests.filter(({ command }) => !HANDSHAKE.has(command));
-
-/** `UserQuoteProfileResponse` with how fast the server takes each command. */
-function quoteProfile(
-  rates: { command: number; limit: number; burst: number }[]
-) {
-  const writer = new BinaryWriter();
-
-  for (const { command, limit, burst } of rates) {
-    writer
-      .tag(5, WireType.LengthDelimited)
-      .fork()
-      .tag(1, WireType.Varint)
-      .int32(command)
-      .tag(2, WireType.Varint)
-      .int32(limit)
-      .tag(3, WireType.Varint)
-      .int32(burst)
-      .join();
-  }
-
-  return writer.finish();
-}
-
-/** Plays Longbridge's quote server over fake sockets. */
-class FakeSocket implements LongbridgeWebSocket {
-  readonly requests: SentRequest[] = [];
-  closed = false;
-  private readonly handlers = new Map<
-    string,
-    ((event: { data?: unknown }) => void)[]
-  >();
-
-  readonly headers: Record<string, string>;
-  private readonly answer: Handler;
-  private readonly profile: Uint8Array;
-
-  constructor(
-    headers: Record<string, string>,
-    answer: Handler,
-    profile: Uint8Array
-  ) {
-    this.headers = headers;
-    this.answer = answer;
-    this.profile = profile;
-    queueMicrotask(() => this.emit("open"));
-  }
-
-  addEventListener(
-    type: "open" | "close" | "error" | "message",
-    listener: (event: { data?: unknown }) => void
-  ) {
-    this.handlers.set(type, [...(this.handlers.get(type) ?? []), listener]);
-  }
-
-  send(data: Uint8Array) {
-    const request = readRequest(data);
-
-    this.requests.push(request);
-
-    const answer = HANDSHAKE.has(request.command)
-      ? ok(request.command === 4 ? this.profile : new Uint8Array())
-      : this.answer(request);
-
-    if (answer) {
-      queueMicrotask(() =>
-        this.emit("message", response(request, answer, request.command === 10))
-      );
-    }
-  }
-
-  close() {
-    if (this.closed) return;
-
-    this.closed = true;
-    this.emit("close");
-  }
-
-  emit(type: "open" | "close" | "error" | "message", data?: ArrayBuffer) {
-    for (const handler of this.handlers.get(type) ?? []) handler({ data });
-  }
-}
-
+/** A Longbridge whose quote server answers each request as `answer` says; one it leaves unanswered never settles. */
 function setup(
   answer: Handler,
-  {
-    envelope = { code: 0, message: "success", data: { otp: "otp-1" } },
-    now = new Date("2026-10-28T14:00:00Z"),
-    rates = [],
-  }: {
-    envelope?: unknown;
-    now?: Date;
-    rates?: { command: number; limit: number; burst: number }[];
-  } = {}
+  { now = new Date("2026-10-28T14:00:00Z") }: { now?: Date } = {}
 ) {
-  const sockets: FakeSocket[] = [];
-  const passwords: { url: string; headers: Headers }[] = [];
+  const asked: SentRequest[] = [];
 
-  const socket = createLongbridgeSocket({
-    accessToken: async () => TOKEN,
-    fetch: async (input, init) => {
-      const request = new Request(input, init);
+  const request = async (command: Command, body: Uint8Array) => {
+    const sent = { command, id: asked.length + 1, body };
 
-      passwords.push({ url: request.url, headers: request.headers });
+    asked.push(sent);
 
-      return Response.json(envelope);
-    },
-    connect: (_url, headers) => {
-      const fake = new FakeSocket(headers, answer, quoteProfile(rates));
+    const answered = answer(sent);
 
-      sockets.push(fake);
+    if (!answered) return new Promise<Uint8Array>(noop);
 
-      return fake;
-    },
-  });
+    if (answered.status !== 0) {
+      const { code, message } = decodeError(answered.body);
+
+      throw new LongbridgeError(
+        `Longbridge refused the request: ${message}`,
+        code
+      );
+    }
+
+    return answered.body;
+  };
 
   return {
-    sockets,
-    passwords,
-    socket,
-    longbridge: createLongbridgeMarketData(socket, { now: () => now }),
+    asked,
+    longbridge: createLongbridgeMarketData({ request }, { now: () => now }),
   };
 }
 
@@ -346,35 +217,8 @@ function tradeDays(trading: string[], halfDays: string[] = []) {
 
 const notListed = () => refused(7, 301_600, "invalid symbol");
 
-test("signs in with a one-time password before its first request, and keeps the connection", async () => {
-  const { longbridge, sockets, passwords } = setup(() =>
-    ok(staticInfo("AAPL.US", "Apple", "蘋果"))
-  );
-
-  await longbridge.getListing(APPLE);
-  await longbridge.getListing(APPLE);
-
-  expect(passwords).toHaveLength(1);
-  expect(passwords[0].url).toBe(
-    "https://openapi.longbridge.com/v1/socket/token"
-  );
-  expect(passwords[0].headers.get("authorization")).toBe(`Bearer ${TOKEN}`);
-  expect(passwords[0].headers.get("x-dc-region")).toBe("ap");
-
-  expect(sockets).toHaveLength(1);
-  expect(sockets[0].headers).toEqual({ "x-dc-region": "ap" });
-
-  const [auth, profile, ...asked] = sockets[0].requests;
-
-  expect(auth.command).toBe(2);
-  expect(requestFields(auth.body).get(1)).toEqual(["otp-1"]);
-  expect(profile.command).toBe(4);
-  expect(asked.map(({ command }) => command)).toEqual([10, 10]);
-  expect(requestFields(asked[0].body).get(1)).toEqual(["AAPL.US"]);
-});
-
 test("names a listing in traditional Chinese, with its English name beside, and keeps a dotted ticker's dot", async () => {
-  const { longbridge, sockets } = setup(() =>
+  const { longbridge, asked } = setup(() =>
     ok(staticInfo("BRK.B.US", "Berkshire Hathaway B", "伯克希爾哈撒韋-B"))
   );
 
@@ -382,9 +226,7 @@ test("names a listing in traditional Chinese, with its English name beside, and 
     name: "伯克希爾哈撒韋-B",
     englishName: "Berkshire Hathaway B",
   });
-  expect(requestFields(askedOf(sockets[0])[0].body).get(1)).toEqual([
-    "BRK.B.US",
-  ]);
+  expect(requestFields(asked[0].body).get(1)).toEqual(["BRK.B.US"]);
 });
 
 test("a symbol Longbridge does not list has no listing, quote, depth or bars", async () => {
@@ -404,7 +246,7 @@ test("a symbol Longbridge does not list has no listing, quote, depth or bars", a
 });
 
 test("serves the latest bars within the range asked for, oldest first, as traded in the regular session", async () => {
-  const { longbridge, sockets } = setup(() =>
+  const { longbridge, asked } = setup(() =>
     ok(
       candlesticks([
         // Daily bars open at midnight in New York.
@@ -465,7 +307,7 @@ test("serves the latest bars within the range asked for, oldest first, as traded
     },
   ]);
 
-  const [traded, adjusted] = askedOf(sockets[0]);
+  const [traded, adjusted] = asked;
 
   expect(traded.command).toBe(19);
   // Daily bars, the latest thousand, as traded, regular session only; then forward-adjusted.
@@ -532,7 +374,7 @@ test("a daily bar counts from the close before, carried over a split or a payout
 });
 
 test("bars shorter than a day carry no reference, asked for as traded alone", async () => {
-  const { longbridge, sockets } = setup(() => ok(candlesticks([])));
+  const { longbridge, asked } = setup(() => ok(candlesticks([])));
 
   await longbridge.getCandles({
     symbol: APPLE,
@@ -541,13 +383,11 @@ test("bars shorter than a day carry no reference, asked for as traded alone", as
     to: "2026-10-28",
   });
 
-  expect(
-    askedOf(sockets[0]).map(({ body }) => requestFields(body).get(4))
-  ).toEqual([[0]]);
+  expect(asked.map(({ body }) => requestFields(body).get(4))).toEqual([[0]]);
 });
 
 test("asks for minute bars by their period", async () => {
-  const { longbridge, sockets } = setup(() => ok(candlesticks([])));
+  const { longbridge, asked } = setup(() => ok(candlesticks([])));
 
   await longbridge.getCandles({
     symbol: APPLE,
@@ -556,7 +396,7 @@ test("asks for minute bars by their period", async () => {
     to: "2026-10-28",
   });
 
-  expect(requestFields(askedOf(sockets[0])[0].body).get(2)).toEqual([15]);
+  expect(requestFields(asked[0].body).get(2)).toEqual([15]);
 });
 
 test("a quote measures the session from the close before it, on New York's date", async () => {
@@ -635,7 +475,7 @@ test("reads the days the US trades a month at a time, early closes among them, u
     ["20270101", tradeDays([])],
   ]);
 
-  const { longbridge, sockets } = setup(({ body }) => {
+  const { longbridge, asked } = setup(({ body }) => {
     const fields = requestFields(body);
 
     expect(fields.get(1)).toEqual(["US"]);
@@ -656,13 +496,13 @@ test("reads the days the US trades a month at a time, early closes among them, u
     earlyCloses: ["2026-11-27", "2026-12-24"],
   });
 
-  const asked = askedOf(sockets[0]).map(({ body }) => {
+  const asks = asked.map(({ body }) => {
     const fields = requestFields(body);
 
     return [fields.get(2)?.[0], fields.get(3)?.[0]];
   });
 
-  expect(asked).toEqual([
+  expect(asks).toEqual([
     ["20261015", "20261031"],
     ["20261101", "20261130"],
     ["20261201", "20261231"],
@@ -671,13 +511,13 @@ test("reads the days the US trades a month at a time, early closes among them, u
 });
 
 test("has no trading days for another market", async () => {
-  const { longbridge, passwords } = setup(() => undefined);
+  const { longbridge, asked } = setup(() => undefined);
 
   expect(await longbridge.tradingDays(Market.TW, "2026-10-01")).toEqual({
     trading: [],
     earlyCloses: [],
   });
-  expect(passwords).toHaveLength(0);
+  expect(asked).toHaveLength(0);
 });
 
 test("refuses a listing in another market", async () => {
@@ -686,17 +526,6 @@ test("refuses a listing in another market", async () => {
   await expect(
     longbridge.getQuote({ market: Market.TW, symbol: "2330" })
   ).rejects.toThrow("longbridge has no data for TW listings");
-});
-
-test("a refused request names Longbridge and the reason it gives", async () => {
-  const { longbridge } = setup(() => refused(7, 301_604, "no quote access"));
-
-  const failure = longbridge.getQuote(APPLE);
-
-  await expect(failure).rejects.toThrow(
-    "Longbridge refused the request: no quote access"
-  );
-  await expect(failure).rejects.toMatchObject({ code: 301_604 });
 });
 
 /** One answer of several quotes, as protobuf merges messages' repeated fields. */
@@ -726,7 +555,7 @@ const lastOf = (symbol: string, last: string) =>
 
 describe("quotes asked for together", () => {
   test("go out as one request, each answered with its own", async () => {
-    const { longbridge, sockets } = setup(() =>
+    const { longbridge, asked } = setup(() =>
       ok(quotes(lastOf("AAPL.US", "347.100"), lastOf("NVDA.US", "190.500")))
     );
 
@@ -738,14 +567,12 @@ describe("quotes asked for together", () => {
     expect(apple?.last).toBe(347.1);
     expect(nvidia?.last).toBe(190.5);
 
-    const asked = askedOf(sockets[0]);
-
     expect(asked.map(({ command }) => command)).toEqual([11]);
     expect(requestFields(asked[0].body).get(1)).toEqual(["AAPL.US", "NVDA.US"]);
   });
 
   test("are asked one by one where Longbridge does not list one of them, which fails them all", async () => {
-    const { longbridge, sockets } = setup(({ body }) => {
+    const { longbridge, asked } = setup(({ body }) => {
       const symbols = requestFields(body).get(1) ?? [];
 
       return symbols.includes("ZZZZ.US")
@@ -760,303 +587,19 @@ describe("quotes asked for together", () => {
 
     expect(apple?.last).toBe(347.1);
     expect(unlisted).toBeNull();
-    expect(
-      askedOf(sockets[0]).map(({ body }) => requestFields(body).get(1))
-    ).toEqual([["AAPL.US", "ZZZZ.US"], ["AAPL.US"], ["ZZZZ.US"]]);
-  });
-});
-
-describe("pacing", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  // `expect.poll` moves a fake clock as it waits, so these wait on the real event loop instead.
-  async function untilAsked(sockets: FakeSocket[], count: number) {
-    while ((sockets[0] ? askedOf(sockets[0]).length : 0) < count) {
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-  }
-
-  const fakeClock = () =>
-    vi.useFakeTimers({
-      toFake: [
-        "setTimeout",
-        "clearTimeout",
-        "setInterval",
-        "clearInterval",
-        "Date",
-      ],
-    });
-
-  test("a command goes out no faster than the server tells the connection it takes, counted as each goes out", async () => {
-    fakeClock();
-
-    const { longbridge, sockets } = setup(
-      () => ok(staticInfo("AAPL.US", "Apple", "蘋果")),
-      { rates: [{ command: 10, limit: 2, burst: 5 }] }
-    );
-
-    const listings = Promise.all(
-      ["AAPL", "MSFT", "NVDA"].map((symbol) =>
-        longbridge.getListing({ market: Market.US, symbol })
-      )
-    );
-
-    await untilAsked(sockets, 2);
-
-    // The server counts as requests arrive, so its second is counted a little longer here.
-    await vi.advanceTimersByTimeAsync(1099);
-    expect(askedOf(sockets[0])).toHaveLength(2);
-
-    await vi.advanceTimersByTimeAsync(1);
-    await listings;
-    expect(askedOf(sockets[0])).toHaveLength(3);
-  });
-
-  test("a request refused as too fast is asked again after a pause", async () => {
-    fakeClock();
-
-    let refusals = 1;
-
-    const { longbridge, sockets } = setup(() =>
-      refusals-- > 0
-        ? refused(3, 301_606, "request rate limit")
-        : ok(staticInfo("AAPL.US", "Apple", "蘋果"))
-    );
-
-    const listing = longbridge.getListing(APPLE);
-
-    await untilAsked(sockets, 1);
-    await vi.advanceTimersByTimeAsync(999);
-    expect(askedOf(sockets[0])).toHaveLength(1);
-
-    await vi.advanceTimersByTimeAsync(1);
-
-    expect(await listing).toMatchObject({ name: "蘋果" });
-    expect(askedOf(sockets[0])).toHaveLength(2);
-  });
-
-  test("one still refused after a few pauses fails, naming why", async () => {
-    fakeClock();
-
-    const { longbridge, sockets } = setup(() =>
-      refused(3, 301_606, "request rate limit")
-    );
-
-    const listing = longbridge.getListing(APPLE);
-
-    void listing.catch(noop);
-    await untilAsked(sockets, 1);
-    await vi.advanceTimersByTimeAsync(1000 + 2000 + 3000);
-
-    await expect(listing).rejects.toThrow(
-      "Longbridge refused the request: request rate limit"
-    );
-    expect(askedOf(sockets[0])).toHaveLength(4);
-  });
-});
-
-test("a sign-in Longbridge refuses names its reason", async () => {
-  const { longbridge, sockets } = setup(() => undefined, {
-    envelope: { code: 401_003, message: "token expired", data: null },
-  });
-
-  const failure = longbridge.getQuote(APPLE);
-
-  await expect(failure).rejects.toThrow(
-    "Longbridge refused the sign-in: token expired"
-  );
-  await expect(failure).rejects.toMatchObject({ code: 401_003 });
-  await expect(failure).rejects.toBeInstanceOf(LongbridgeError);
-  expect(sockets).toHaveLength(0);
-});
-
-test("a connection that closes fails what it was asked, and the next request opens another", async () => {
-  let answering = false;
-
-  const { longbridge, sockets, passwords } = setup(() =>
-    answering ? ok(staticInfo("AAPL.US", "Apple", "蘋果")) : undefined
-  );
-
-  const lost = longbridge.getListing(APPLE);
-
-  await expect.poll(() => sockets[0]?.requests.length).toBe(3);
-  sockets[0].close();
-
-  await expect(lost).rejects.toThrow("Longbridge closed the quote connection");
-
-  answering = true;
-
-  expect(await longbridge.getListing(APPLE)).toMatchObject({ name: "蘋果" });
-  expect(sockets).toHaveLength(2);
-  expect(passwords).toHaveLength(2);
-});
-
-describe("the server closing the connection", () => {
-  test("fails what was asked with the reason it gives", async () => {
-    const { longbridge, sockets } = setup(() => undefined);
-
-    const lost = longbridge.getListing(APPLE);
-
-    await expect.poll(() => sockets[0]?.requests.length).toBe(3);
-
-    const reason = new BinaryWriter()
-      .tag(1, WireType.Varint)
-      .int32(5)
-      .tag(2, WireType.LengthDelimited)
-      .string("session expired")
-      .finish();
-
-    const push = new Uint8Array(5 + reason.length);
-
-    push[0] = 0x03;
-    push[1] = 0;
-    push[4] = reason.length;
-    push.set(reason, 5);
-    sockets[0].emit("message", push.buffer);
-
-    await expect(lost).rejects.toThrow(
-      "Longbridge closed the quote connection: session expired"
-    );
-    expect(sockets[0].closed).toBe(true);
-  });
-});
-
-/** A push packet: type, command and length, then the body. */
-function pushPacket(command: number, body: Uint8Array) {
-  const packet = new Uint8Array(5 + body.length);
-
-  packet[0] = 0x03;
-  packet[1] = command;
-  packet[2] = (body.length >> 16) & 0xff;
-  packet[3] = (body.length >> 8) & 0xff;
-  packet[4] = body.length & 0xff;
-  packet.set(body, 5);
-
-  return packet.buffer;
-}
-
-describe("pushes and drops", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  test("every push reaches the listeners, and a signed-in connection dropping tells them", async () => {
-    const { socket, longbridge, sockets } = setup(() =>
-      ok(staticInfo("AAPL.US", "Apple", "蘋果"))
-    );
-
-    const pushes: [number, number[]][] = [];
-    const drops = vi.fn();
-
-    socket.onPush((command, body) => pushes.push([command, [...body]]));
-    socket.onDrop(drops);
-    await longbridge.getListing(APPLE);
-
-    sockets[0].emit("message", pushPacket(104, new Uint8Array([8, 1])));
-
-    expect(pushes).toEqual([[104, [8, 1]]]);
-    expect(drops).not.toHaveBeenCalled();
-
-    sockets[0].close();
-
-    expect(drops).toHaveBeenCalledTimes(1);
-  });
-
-  test("a connection that never signed in drops without telling them, as it held no subscriptions", async () => {
-    const { socket, longbridge } = setup(() => undefined, {
-      envelope: { code: 401, message: "token expired", data: null },
-    });
-
-    const drops = vi.fn();
-
-    socket.onDrop(drops);
-
-    await expect(longbridge.getListing(APPLE)).rejects.toThrow("token expired");
-    expect(drops).not.toHaveBeenCalled();
-  });
-
-  test("a heartbeat goes every half a minute, and one left unanswered drops the connection", async () => {
-    vi.useFakeTimers({
-      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
-    });
-
-    let answering = true;
-
-    const { socket, longbridge, sockets } = setup((request) =>
-      request.command !== 1 || answering
-        ? ok(staticInfo("AAPL.US", "Apple", "蘋果"))
-        : undefined
-    );
-
-    const drops = vi.fn();
-
-    socket.onDrop(drops);
-    await longbridge.getListing(APPLE);
-    await vi.advanceTimersByTimeAsync(30_000);
-
-    expect(sockets[0].requests.map(({ command }) => command)).toEqual([
-      2, 4, 10, 1,
+    expect(asked.map(({ body }) => requestFields(body).get(1))).toEqual([
+      ["AAPL.US", "ZZZZ.US"],
+      ["AAPL.US"],
+      ["ZZZZ.US"],
     ]);
-    expect(drops).not.toHaveBeenCalled();
-
-    answering = false;
-    await vi.advanceTimersByTimeAsync(30_000 + 15_000);
-
-    expect(drops).toHaveBeenCalledTimes(1);
-    expect(sockets[0].closed).toBe(true);
   });
-});
-
-test("nothing is asked once the connection is closed for good", async () => {
-  const { socket, longbridge } = setup(() => undefined);
-
-  socket.close();
-
-  await expect(longbridge.getListing(APPLE)).rejects.toThrow(
-    "The Longbridge connection closed"
-  );
 });
 
 /** The sign-in's HTTP API over `fetch`, as the backend hands the list's reader one. */
 const listApi = (fetch: typeof globalThis.fetch) =>
-  createLongbridgeApi({ accessToken: async () => TOKEN, fetch });
+  createLongbridge({ accessToken: async () => TOKEN, fetch });
 
 describe("the list of US listings", () => {
-  test("a refusal as too frequent is tried again, and one refused every time names its reason", async () => {
-    const limited = "已達到 1S 區間調用上限，請 0.2 秒後重試";
-    let asked = 0;
-
-    const answer = (refusals: number) => async () => {
-      asked += 1;
-
-      return asked <= refusals
-        ? Response.json(
-            { code: 429_001, message: limited, data: null },
-            { status: 429, headers: { "retry-after": "0" } }
-          )
-        : Response.json({
-            code: 0,
-            message: "success",
-            data: {
-              list: [
-                { symbol: "AAPL.US", name_hk: "蘋果", name_en: "Apple Inc." },
-              ],
-            },
-          });
-    };
-
-    expect(await readLongbridgeSecurities(listApi(answer(2)))).toHaveLength(1);
-
-    asked = 0;
-
-    await expect(readLongbridgeSecurities(listApi(answer(99)))).rejects.toThrow(
-      `Longbridge refused its list of US listings: ${limited}`
-    );
-    expect(asked).toBe(6);
-  });
-
   test("names each in traditional Chinese with its English name beside, its ticker without the market", async () => {
     const sent: Request[] = [];
 

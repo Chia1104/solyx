@@ -4,7 +4,7 @@ import * as z from "zod";
 import { Market } from "@solyx/core/market";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsItem, NewsQuery, NewsSource } from "@solyx/core/news";
-import type { LongbridgeApi } from "@solyx/market-data/longbridge-api";
+import type { Longbridge } from "@solyx/longbridge/client";
 import { normalizeSpace } from "@solyx/utils/text";
 
 const contentSchema = z.object({ items: z.array(z.unknown()) });
@@ -49,7 +49,7 @@ function headline({ title, description }: Entry): string {
 
 export interface LongbridgeContentOptions {
   /** The sign-in's HTTP API, whose budget its other readers share. */
-  api: LongbridgeApi;
+  api: Pick<Longbridge, "read">;
 }
 
 /** One of Longbridge's feeds of a listing, newest first, as items of one channel. */

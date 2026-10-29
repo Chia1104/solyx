@@ -1,5 +1,4 @@
-import { chunk, limitAsync, noop, retry } from "es-toolkit";
-import ky from "ky";
+import { chunk } from "es-toolkit";
 import * as z from "zod";
 
 import { Interval, candleDate } from "@solyx/core/candles";
@@ -9,6 +8,7 @@ import type { SymbolRef } from "@solyx/core/market";
 import type {
   CandleRequest,
   Depth,
+  DepthLevel,
   Listing,
   MarketDataProvider,
   Quote,
@@ -17,81 +17,27 @@ import type {
   ExchangeDays,
   TradingCalendarProvider,
 } from "@solyx/core/session";
-import { createRateLimiter } from "@solyx/utils/rate-limit";
-
-import {
-  LONGBRIDGE_RETRIES,
-  LongbridgeError,
-  longbridgeAnswer,
-} from "./longbridge-api.ts";
-import type { LongbridgeApi } from "./longbridge-api.ts";
-import { longbridgeDataCenter } from "./longbridge-sign-in.ts";
+import { LongbridgeError } from "@solyx/longbridge/client";
+import type { Longbridge } from "@solyx/longbridge/client";
 import {
   AdjustType,
   Command,
-  PacketType,
   Period,
-  ResponseStatus,
-  authRequest,
-  bookSide,
   candlesticksRequest,
   decodeCandlesticks,
-  decodeClose,
-  decodeCommandRates,
   decodeDepth,
-  decodeError,
-  decodePacket,
   decodeQuotes,
   decodeStaticInfo,
   decodeTradeDays,
-  encodeRequest,
-  heartbeatRequest,
   price,
   securitiesRequest,
   tradeDaysRequest,
-} from "./longbridge-wire.ts";
+} from "@solyx/longbridge/wire";
 import type {
+  BookEntry,
   Candlestick,
-  CommandRate,
-  Packet,
   SecurityQuote,
-} from "./longbridge-wire.ts";
-
-const API_URL = "https://openapi.longbridge.com";
-
-const QUOTE_URL =
-  "wss://openapi-quote.longbridge.com/v2?version=1&codec=1&platform=9";
-
-// Longbridge documents ten quote requests a second, five at once, and tells each connection what
-// it takes of each command, which counts in place of the ten for that command.
-const REQUESTS_PER_SECOND = 10;
-
-const CONCURRENT_REQUESTS = 5;
-
-// The server counts requests as they arrive, which the network may bunch, so each second is
-// counted a little longer here.
-const RATE_WINDOW_MS = 1100;
-
-/** The code Longbridge refuses a request with when its command came too fast. */
-const RATE_LIMITED = 301_606;
-
-// A request refused as too fast is asked again after a pause that grows, a few times, as
-// Longbridge's own SDK holds a request back rather than failing it.
-const RATE_LIMITED_RETRIES = 3;
-
-const RATE_LIMITED_PAUSE_MS = 1000;
-
-// What the server waits before it answers a request with a timeout; silence past it and a grace
-// means the connection is gone.
-const REQUEST_TIMEOUT_MS = 10_000;
-
-const ANSWER_GRACE_MS = 5_000;
-
-// The runtime's WebSocket hides the server's pings, so a heartbeat this often finds a connection
-// that died quietly, as one does across a sleep, within a request's timeout of it.
-const HEARTBEAT_MS = 30_000;
-
-const MAX_REQUEST_ID = 0xffffffff;
+} from "@solyx/longbridge/wire";
 
 /** The code Longbridge answers a symbol it does not list with. */
 export const INVALID_SYMBOL = 301_600;
@@ -113,12 +59,6 @@ const PERIOD: Record<BarInterval, Period> = {
   [Interval.OneHour]: Period.OneHour,
   [Interval.OneDay]: Period.Day,
 };
-
-const envelopeSchema = z.object({
-  code: z.number(),
-  message: z.string(),
-  data: z.object({ otp: z.string() }).nullish(),
-});
 
 const securityListSchema = z.object({
   list: z.array(
@@ -146,7 +86,7 @@ const US_SUFFIX = ".US";
  * their names. It is the one list Longbridge documents for US listings.
  */
 export async function readLongbridgeSecurities(
-  api: LongbridgeApi
+  api: Pick<Longbridge, "read">
 ): Promise<LongbridgeSecurity[]> {
   const data = await api.read(
     "v1/quote/get_security_list",
@@ -170,384 +110,17 @@ export async function readLongbridgeSecurities(
   });
 }
 
-/** The WebSocket surface the client uses, so tests can drive it without a server. */
-export interface LongbridgeWebSocket {
-  send(data: Uint8Array): void;
-  close(): void;
-  addEventListener(
-    type: "open" | "close" | "error" | "message",
-    listener: (event: { data?: unknown }) => void
-  ): void;
-}
+/** One side of a book, best first, without the empty levels Longbridge pads it with. */
+export const bookSide = (levels: readonly BookEntry[]): DepthLevel[] =>
+  levels
+    .toSorted((a, b) => a.position - b.position)
+    .flatMap(({ price: text, volume }) => {
+      const value = price(text);
 
-/** Opens a socket to `url` with the upgrade's headers; tests stand in for the server here. */
-export type LongbridgeConnect = (
-  url: string,
-  headers: Record<string, string>
-) => LongbridgeWebSocket;
-
-function openWebSocket(url: string, headers: Record<string, string>) {
-  const socket = new WebSocket(url, { headers });
-
-  socket.binaryType = "arraybuffer";
-
-  return socket;
-}
-
-export interface LongbridgeSocketOptions {
-  /** The signed-in user's OAuth access token, which the caller refreshes before it expires. */
-  accessToken: () => Promise<string>;
-  /** @default globalThis.fetch */
-  fetch?: typeof fetch;
-  connect?: LongbridgeConnect;
-}
-
-/** A push the server sent: its command and its body. */
-export type LongbridgePushListener = (
-  command: number,
-  body: Uint8Array
-) => void;
-
-/** One sign-in's connection to Longbridge's quote server, opened on the first request. */
-export interface LongbridgeSocket {
-  /** Sends a request once the connection is open and signed in; resolves with the answer's body. */
-  request(command: Command, body: Uint8Array): Promise<Uint8Array>;
-  /** Hears every push on every connection; returns a function that stops. */
-  onPush(listener: LongbridgePushListener): () => void;
-  /** Hears a signed-in connection drop, which takes its subscriptions with it; returns a function that stops. */
-  onDrop(listener: () => void): () => void;
-  close(): void;
-}
-
-interface Connection {
-  call(command: Command, body: Uint8Array): Promise<Uint8Array>;
-  close(): void;
-}
-
-/**
- * The quote server's connection for one sign-in. A request opens it when none is open, fetching a
- * one-time password with the access token and signing in with it; a connection that closes,
- * refuses or stops answering is dropped with its requests, and the next request opens another.
- */
-export function createLongbridgeSocket({
-  accessToken,
-  fetch,
-  connect = openWebSocket,
-}: LongbridgeSocketOptions): LongbridgeSocket {
-  const api = ky.create({ baseUrl: API_URL, fetch, ...LONGBRIDGE_RETRIES });
-
-  // Each command's pace, as the server last told a connection of this sign-in.
-  const paces = new Map<
-    number,
-    { limit: number; pace: ReturnType<typeof createRateLimiter> }
-  >();
-
-  function paceFor(command: number, limit: number) {
-    const kept = paces.get(command);
-
-    if (kept?.limit === limit) return kept.pace;
-
-    const pace = createRateLimiter({ limit, windowMs: RATE_WINDOW_MS });
-
-    paces.set(command, { limit, pace });
-
-    return pace;
-  }
-
-  // A burst below the rate caps it, since more than the burst may not come at once.
-  function setRates(rates: readonly CommandRate[]) {
-    for (const { command, limit, burst } of rates) {
-      if (limit > 0) paceFor(command, Math.min(limit, burst || limit));
-    }
-  }
-
-  let current: Promise<Connection> | undefined;
-  let closed = false;
-  const pushListeners = new Set<LongbridgePushListener>();
-  const dropListeners = new Set<() => void>();
-
-  async function oneTimePassword(token: string): Promise<string> {
-    const response = await longbridgeAnswer(
-      () =>
-        api.get("v1/socket/token", {
-          headers: {
-            authorization: `Bearer ${token}`,
-            "x-dc-region": longbridgeDataCenter(token),
-          },
-        }),
-      "the sign-in"
-    );
-
-    const envelope = envelopeSchema.safeParse(await response.json());
-
-    if (!envelope.success) {
-      throw new LongbridgeError(
-        `Longbridge answered the sign-in with HTTP ${response.status}`
-      );
-    }
-
-    const { code, message, data } = envelope.data;
-
-    if (code !== 0 || !data) {
-      throw new LongbridgeError(
-        `Longbridge refused the sign-in: ${message}`,
-        code
-      );
-    }
-
-    return data.otp;
-  }
-
-  /** `onDrop` hears whether the connection had signed in when it dropped. */
-  async function open(
-    onDrop: (signedIn: boolean) => void
-  ): Promise<Connection> {
-    const token = await accessToken();
-    const otp = await oneTimePassword(token);
-
-    const socket = connect(QUOTE_URL, {
-      "x-dc-region": longbridgeDataCenter(token),
+      return value === null || volume === 0
+        ? []
+        : [{ price: value, shares: volume }];
     });
-
-    const pending = new Map<
-      number,
-      {
-        resolve: (body: Uint8Array) => void;
-        reject: (error: Error) => void;
-        timer: ReturnType<typeof setTimeout>;
-      }
-    >();
-
-    let nextId = 1;
-    let dropped: Error | undefined;
-    let refuseOpening: ((reason: Error) => void) | undefined;
-    let signedIn = false;
-    let heartbeat: ReturnType<typeof setInterval> | undefined;
-
-    function drop(reason: Error) {
-      if (dropped) return;
-
-      dropped = reason;
-      clearInterval(heartbeat);
-
-      for (const { reject, timer } of pending.values()) {
-        clearTimeout(timer);
-        reject(reason);
-      }
-
-      pending.clear();
-      refuseOpening?.(reason);
-      socket.close();
-      onDrop(signedIn);
-    }
-
-    function settle(
-      packet: Extract<Packet, { type: typeof PacketType.Response }>,
-      what: string
-    ) {
-      const waiting = pending.get(packet.id);
-
-      if (!waiting) return;
-
-      pending.delete(packet.id);
-      clearTimeout(waiting.timer);
-
-      if (packet.status === ResponseStatus.Success) {
-        waiting.resolve(packet.body);
-
-        return;
-      }
-
-      const { code, message } = decodeError(packet.body);
-
-      waiting.reject(
-        new LongbridgeError(
-          `Longbridge refused ${what}: ${message || `status ${packet.status}`}`,
-          code || null
-        )
-      );
-    }
-
-    const purposes = new Map<number, string>();
-
-    function call(
-      command: Command,
-      body: Uint8Array,
-      what = "the request"
-    ): Promise<Uint8Array> {
-      if (dropped) return Promise.reject(dropped);
-
-      const id = nextId;
-
-      nextId = nextId === MAX_REQUEST_ID ? 1 : nextId + 1;
-      purposes.set(id, what);
-
-      return new Promise((resolve, reject) => {
-        const timer = setTimeout(
-          () =>
-            drop(
-              new LongbridgeError("Longbridge's quote server stopped answering")
-            ),
-          REQUEST_TIMEOUT_MS + ANSWER_GRACE_MS
-        );
-
-        pending.set(id, { resolve, reject, timer });
-        socket.send(
-          encodeRequest({ command, id, timeoutMs: REQUEST_TIMEOUT_MS, body })
-        );
-      });
-    }
-
-    socket.addEventListener("message", ({ data }) => {
-      if (!(data instanceof ArrayBuffer)) return;
-
-      const packet = decodePacket(new Uint8Array(data));
-
-      if (packet?.type === PacketType.Response) {
-        settle(packet, purposes.get(packet.id) ?? "the request");
-        purposes.delete(packet.id);
-      } else if (packet?.command === Command.Close) {
-        const { reason } = decodeClose(packet.body);
-
-        drop(
-          new LongbridgeError(
-            `Longbridge closed the quote connection: ${reason}`
-          )
-        );
-      } else if (packet && !dropped) {
-        for (const listener of pushListeners) {
-          listener(packet.command, packet.body);
-        }
-      }
-    });
-
-    socket.addEventListener("close", () =>
-      drop(new LongbridgeError("Longbridge closed the quote connection"))
-    );
-
-    const unreachable = () =>
-      drop(
-        new LongbridgeError("Longbridge's quote server could not be reached")
-      );
-
-    socket.addEventListener("error", unreachable);
-
-    const timer = setTimeout(unreachable, REQUEST_TIMEOUT_MS);
-
-    try {
-      await new Promise<void>((resolve, reject) => {
-        refuseOpening = reject;
-        socket.addEventListener("open", () => resolve());
-      });
-    } finally {
-      clearTimeout(timer);
-      refuseOpening = undefined;
-    }
-
-    try {
-      await call(
-        Command.Auth,
-        authRequest(otp, { "accept-language": "en" }),
-        "the sign-in"
-      );
-
-      setRates(
-        decodeCommandRates(
-          await call(
-            Command.QueryUserQuoteProfile,
-            new Uint8Array(),
-            "the quote profile"
-          )
-        )
-      );
-    } catch (error) {
-      if (error instanceof Error) drop(error);
-
-      throw error;
-    }
-
-    // The server may close the connection on the answer's heels.
-    if (dropped) throw dropped;
-
-    signedIn = true;
-
-    // An unanswered heartbeat drops the connection as any unanswered request does.
-    heartbeat = setInterval(() => {
-      call(
-        Command.Heartbeat,
-        heartbeatRequest(Date.now()),
-        "the heartbeat"
-      ).catch(noop);
-    }, HEARTBEAT_MS);
-
-    return {
-      call,
-      close: () =>
-        drop(new LongbridgeError("The Longbridge connection closed")),
-    };
-  }
-
-  function connection(): Promise<Connection> {
-    if (closed) {
-      return Promise.reject(
-        new LongbridgeError("The Longbridge connection closed")
-      );
-    }
-
-    if (!current) {
-      const opening: Promise<Connection> = open((signedIn) => {
-        if (current === opening) current = undefined;
-
-        if (signedIn) for (const listener of dropListeners) listener();
-      });
-
-      current = opening;
-      opening.catch(() => {
-        if (current === opening) current = undefined;
-      });
-    }
-
-    return current;
-  }
-
-  // A request counts against its command's pace as it goes out, not as it waits for a turn, so
-  // requests held back by the five at once never go out together past the pace.
-  const send = limitAsync(async (command: Command, body: Uint8Array) => {
-    const open = await connection();
-
-    return (paces.get(command)?.pace ?? paceFor(command, REQUESTS_PER_SECOND))(
-      () => open.call(command, body)
-    );
-  }, CONCURRENT_REQUESTS);
-
-  function listen<Listener>(listeners: Set<Listener>, listener: Listener) {
-    listeners.add(listener);
-
-    return () => {
-      listeners.delete(listener);
-    };
-  }
-
-  return {
-    request: (command, body) =>
-      retry(() => send(command, body), {
-        retries: RATE_LIMITED_RETRIES,
-        delay: (attempts) => RATE_LIMITED_PAUSE_MS * (attempts + 1),
-        shouldRetry: (error) =>
-          error instanceof LongbridgeError && error.code === RATE_LIMITED,
-      }),
-
-    onPush: (listener) => listen(pushListeners, listener),
-
-    onDrop: (listener) => listen(dropListeners, listener),
-
-    close() {
-      closed = true;
-      void current?.then((opened) => opened.close()).catch(() => undefined);
-      current = undefined;
-    },
-  };
-}
 
 /** A bar as traded; none where Longbridge left a price out. */
 function tradedBar(bar: Candlestick): Candle[] {
@@ -681,7 +254,7 @@ function batchQuotes(
 }
 
 export function createLongbridgeMarketData(
-  socket: LongbridgeSocket,
+  longbridge: Pick<Longbridge, "request">,
   { now = () => new Date() }: LongbridgeMarketDataOptions = {}
 ): MarketDataProvider & TradingCalendarProvider {
   const id = "longbridge";
@@ -701,7 +274,7 @@ export function createLongbridgeMarketData(
     read: (answer: Uint8Array) => T
   ): Promise<T | null> {
     try {
-      return read(await socket.request(command, body));
+      return read(await longbridge.request(command, body));
     } catch (error) {
       if (error instanceof LongbridgeError && error.code === INVALID_SYMBOL) {
         return null;
@@ -725,7 +298,7 @@ export function createLongbridgeMarketData(
 
   async function tradeDays(begin: string, end: string) {
     return decodeTradeDays(
-      await socket.request(
+      await longbridge.request(
         Command.QueryMarketTradeDay,
         tradeDaysRequest(Market.US, toDay(begin), toDay(end))
       )

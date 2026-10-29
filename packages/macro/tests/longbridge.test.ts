@@ -1,9 +1,10 @@
-import { expect, test } from "vite-plus/test";
+import { noop } from "es-toolkit";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
 import { EventTiming } from "@solyx/core/calendar";
 import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
-import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
+import { createLongbridge } from "@solyx/longbridge/client";
 
 import { createLongbridgeMacro } from "../src/longbridge.ts";
 
@@ -195,20 +196,34 @@ function fakeLongbridge(answers = ANSWERS) {
   return {
     asked,
     macro: createLongbridgeMacro({
-      api: createLongbridgeApi({ accessToken: async () => "hk_access", fetch }),
+      api: createLongbridge({ accessToken: async () => "hk_access", fetch }),
     }),
   };
+}
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/** `read` once the client's pace has let every request of it go, a quarter of a second apart. */
+async function paced<T>(read: Promise<T>): Promise<T> {
+  await vi.advanceTimersByTimeAsync(15 * 250);
+
+  return read;
 }
 
 test("reads each followed series from the month asked for, in English, oldest first, with what was expected of each period and of the next", async () => {
   const { asked, macro } = fakeLongbridge();
 
-  const series = await macro.series(Market.US, "2024-08");
+  const series = await paced(macro.series(Market.US, "2024-08"));
 
   expect(asked).toHaveLength(15);
   expect(asked[0]?.path).toBe("/v2/quote/macrodata/30771885");
   expect(Object.fromEntries(asked[0]?.params ?? [])).toEqual({
-    start_date: "2024-08-01",
     limit: "100",
     sort: "desc",
   });
@@ -251,7 +266,11 @@ test("a code Longbridge now names another series fails the read rather than pass
     ])
   );
 
-  await expect(macro.series(Market.US, "2024-08")).rejects.toThrow(
+  const read = macro.series(Market.US, "2024-08");
+
+  void read.catch(noop);
+  await vi.advanceTimersByTimeAsync(15 * 250);
+  await expect(read).rejects.toThrow(
     `Longbridge no longer names series 30771871 ${CPI}`
   );
 });
@@ -259,7 +278,7 @@ test("a code Longbridge now names another series fails the read rather than pass
 test("an indicator's figures released together are one release, on New York's day and clock, named by its headline's period", async () => {
   const { macro } = fakeLongbridge();
 
-  const releases = await macro.releases(Market.US, "2026-10-22");
+  const releases = await paced(macro.releases(Market.US, "2026-10-22"));
 
   expect(releases).toEqual([
     {
@@ -308,6 +327,24 @@ test("an indicator's figures released together are one release, on New York's da
       page: null,
     },
   ]);
+});
+
+test("the schedule and the figures asked for together share one read, which is asked again a while later", async () => {
+  const { asked, macro } = fakeLongbridge();
+
+  await paced(
+    Promise.all([
+      macro.releases(Market.US, "2026-10-22"),
+      macro.series(Market.US, "2024-08"),
+    ])
+  );
+
+  expect(asked).toHaveLength(15);
+
+  await vi.advanceTimersByTimeAsync(5 * 60_000);
+  await paced(macro.series(Market.US, "2024-08"));
+
+  expect(asked).toHaveLength(30);
 });
 
 test("another market is none of its business and costs no request", async () => {

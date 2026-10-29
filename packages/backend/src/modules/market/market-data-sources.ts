@@ -28,6 +28,7 @@ import type {
 } from "@solyx/core/market-data";
 import type { TradingCalendarProvider, TradingDays } from "@solyx/core/session";
 import type { CandleStore } from "@solyx/db/cache";
+import type { Longbridge } from "@solyx/longbridge/client";
 import { withCandleCache } from "@solyx/market-data/candle-cache";
 import {
   FUBON_PLAN,
@@ -42,14 +43,9 @@ import {
 import type { FuglePlan } from "@solyx/market-data/fugle";
 import {
   createLongbridgeMarketData,
-  createLongbridgeSocket,
   readLongbridgeSecurities,
 } from "@solyx/market-data/longbridge";
-import type {
-  LongbridgeSecurity,
-  LongbridgeSocket,
-} from "@solyx/market-data/longbridge";
-import type { LongbridgeApi } from "@solyx/market-data/longbridge-api";
+import type { LongbridgeSecurity } from "@solyx/market-data/longbridge";
 import { createLongbridgeStream } from "@solyx/market-data/longbridge-stream";
 import { errorMessage } from "@solyx/utils/error";
 
@@ -95,16 +91,15 @@ interface MarketDataSourcesOptions {
   /** The order desk trades through Fubon, so its session stays while charts come from elsewhere. */
   tradesFubon: boolean;
   longbridge: LongbridgeAccess;
-  /** The sign-in's HTTP API, whose budget the fundamentals and filings share. */
-  longbridgeApi: LongbridgeApi;
+  /** The sign-in's Longbridge, whose budget every reader of it shares. */
+  longbridgeClient: Longbridge;
   /** The days each market trades, which tell a live bar when its session closes. */
   tradingDays: (market: Market) => Promise<TradingDays>;
 }
 
-/** One Longbridge sign-in's connection, the provider over it, and that provider with the candle cache. */
+/** One Longbridge sign-in's provider, and that provider with the candle cache. */
 interface LongbridgeConnection {
   clientId: string;
-  socket: LongbridgeSocket;
   data: MarketDataProvider & TradingCalendarProvider;
   provider: MarketDataProvider;
 }
@@ -142,7 +137,7 @@ export function createMarketDataSources({
   openFubonProcess,
   tradesFubon,
   longbridge,
-  longbridgeApi,
+  longbridgeClient,
   tradingDays,
 }: MarketDataSourcesOptions) {
   let fugle:
@@ -227,20 +222,16 @@ export function createMarketDataSources({
       return longbridgeConnection;
     }
 
-    longbridgeConnection?.socket.close();
+    // The connection was signed in as the client before, maybe of another account.
+    longbridgeClient.disconnect();
     longbridgeConnection = undefined;
 
     if (clientId === undefined) return undefined;
 
-    const socket = createLongbridgeSocket({
-      accessToken: () => longbridge.accessToken(),
-    });
-
-    const data = createLongbridgeMarketData(socket);
+    const data = createLongbridgeMarketData(longbridgeClient);
 
     longbridgeConnection = {
       clientId,
-      socket,
       data,
       provider: withCandleCache(data, candles),
     };
@@ -390,7 +381,7 @@ export function createMarketDataSources({
     return (
       connection &&
       createLongbridgeStream({
-        socket: connection.socket,
+        longbridge: longbridgeClient,
         provider: connection.provider,
         tradingDays: () => tradingDays(Market.US),
       })
@@ -517,7 +508,7 @@ export function createMarketDataSources({
     async usListings(): Promise<LongbridgeSecurity[] | undefined> {
       if (!(await longbridge.signedIn())) return undefined;
 
-      return readLongbridgeSecurities(longbridgeApi);
+      return readLongbridgeSecurities(longbridgeClient);
     },
 
     signInLongbridge: (locale: Locale) => longbridge.signIn(locale),

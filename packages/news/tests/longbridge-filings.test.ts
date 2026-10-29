@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { Market } from "@solyx/core/market";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
-import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
+import { createLongbridge } from "@solyx/longbridge/client";
 
 import { createLongbridgeFilings } from "../src/longbridge-filings.ts";
 
@@ -26,7 +26,7 @@ function fakeLongbridge(answer: () => Response) {
   const asked: Request[] = [];
 
   const filings = createLongbridgeFilings({
-    api: createLongbridgeApi({
+    api: createLongbridge({
       accessToken: async () => TOKEN,
       fetch: async (input, init) => {
         asked.push(new Request(input, init));
