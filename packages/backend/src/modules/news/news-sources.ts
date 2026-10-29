@@ -1,6 +1,6 @@
 import type { NewsSource } from "@solyx/core/news";
 import type { WebSearch } from "@solyx/core/web-search";
-import type { LongbridgeApi } from "@solyx/market-data/longbridge-api";
+import type { Longbridge } from "@solyx/longbridge/client";
 import { createAnnouncements } from "@solyx/news/announcements";
 import { createInsiderTransfers } from "@solyx/news/insider-transfers";
 import {
@@ -14,7 +14,7 @@ import { createWebNews, createWebSocial } from "@solyx/news/web";
 /** The user's Longbridge sign-in, which US filings, news and community posts are read on. */
 export interface LongbridgeNewsAccess {
   signedIn(): Promise<boolean>;
-  api: LongbridgeApi;
+  api: Pick<Longbridge, "read">;
 }
 
 /**

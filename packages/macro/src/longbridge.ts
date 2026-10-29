@@ -10,7 +10,7 @@ import type {
   MacroSeries,
 } from "@solyx/core/macro";
 import { Market, exchangeDate, exchangeTime } from "@solyx/core/market";
-import type { LongbridgeApi } from "@solyx/market-data/longbridge-api";
+import type { Longbridge } from "@solyx/longbridge/client";
 
 /** How a series' periods come, which says how its period is written. */
 const Cycle = {
@@ -214,7 +214,7 @@ function periodOf(observed: string, released: Date, cycle: Cycle): string {
 
 export interface LongbridgeMacroOptions {
   /** The sign-in's HTTP API, which rejects while signed out. */
-  api: LongbridgeApi;
+  api: Pick<Longbridge, "read">;
 }
 
 /**

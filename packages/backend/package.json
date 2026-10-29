@@ -56,6 +56,7 @@
     "@solyx/fundamentals": "workspace:*",
     "@solyx/i18n": "workspace:*",
     "@solyx/kernel": "workspace:*",
+    "@solyx/longbridge": "workspace:*",
     "@solyx/macro": "workspace:*",
     "@solyx/market-data": "workspace:*",
     "@solyx/news": "workspace:*",

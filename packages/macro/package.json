@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@solyx/core": "workspace:*",
-    "@solyx/market-data": "workspace:*",
+    "@solyx/longbridge": "workspace:*",
     "es-toolkit": "catalog:",
     "ky": "catalog:",
     "zod": "catalog:"

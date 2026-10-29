@@ -12,23 +12,22 @@ import type {
 } from "@solyx/core/market-data";
 import { regularHours, weekdays } from "@solyx/core/session";
 import type { TradingDays } from "@solyx/core/session";
-
-import { LongbridgeError } from "./longbridge-api.ts";
+import { LongbridgeError } from "@solyx/longbridge/client";
+import type { Longbridge } from "@solyx/longbridge/client";
 import {
   Command,
   SubType,
   TradeSession,
-  bookSide,
   decodeDepthPush,
   decodeQuotePush,
   decodeTradePush,
   price,
   subscribeRequest,
   unsubscribeRequest,
-} from "./longbridge-wire.ts";
-import type { BookEntry, QuotePush, Trade } from "./longbridge-wire.ts";
-import { INVALID_SYMBOL } from "./longbridge.ts";
-import type { LongbridgeSocket } from "./longbridge.ts";
+} from "@solyx/longbridge/wire";
+import type { BookEntry, QuotePush, Trade } from "@solyx/longbridge/wire";
+
+import { INVALID_SYMBOL, bookSide } from "./longbridge.ts";
 
 /** What one sign-in holds subscribed at once, every listing's bars and books between them. */
 const MAX_SUBSCRIPTIONS = 500;
@@ -163,8 +162,8 @@ interface Watched {
 }
 
 export interface LongbridgeStreamOptions {
-  /** The sign-in's connection, which the provider's requests share, since Longbridge allows one. */
-  socket: LongbridgeSocket;
+  /** The sign-in's Longbridge, whose one connection the provider's requests share. */
+  longbridge: Pick<Longbridge, "request" | "onPush" | "onDrop">;
   /** Where a watch starts from: the session's minute bars so far and the book as it stands. */
   provider: Pick<MarketDataProvider, "getCandles" | "getDepth">;
   /** The days the US trades, which tell when a regular session closes early. @default () => weekdays */
@@ -186,7 +185,7 @@ const subscriptionOf = <Listener>(): Subscription<Listener> => ({
  * the session's bars so far, and a connection that drops is subscribed again from them.
  */
 export function createLongbridgeStream({
-  socket,
+  longbridge,
   provider,
   tradingDays = async () => weekdays,
   now = () => new Date(),
@@ -204,7 +203,7 @@ export function createLongbridgeStream({
 
   function unsubscribe(code: string, channel: Channel) {
     // A request that fails went with a connection that dropped, and its subscriptions with it.
-    socket
+    longbridge
       .request(
         Command.Unsubscribe,
         unsubscribeRequest([code], SUB_TYPES[channel])
@@ -218,7 +217,7 @@ export function createLongbridgeStream({
     channel: Channel,
     watch: MinuteWatch | BookWatch
   ): Promise<boolean> {
-    await socket.request(
+    await longbridge.request(
       Command.Subscribe,
       subscribeRequest(
         [entry.code],
@@ -519,13 +518,13 @@ export function createLongbridgeStream({
     });
   }
 
-  const stopPushes = socket.onPush((command, body) => {
+  const stopPushes = longbridge.onPush((command, body) => {
     if (command === Command.PushTrade) onTrades(body);
     else if (command === Command.PushQuote) onQuote(body);
     else if (command === Command.PushDepth) onBook(body);
   });
 
-  const stopDrops = socket.onDrop(() => {
+  const stopDrops = longbridge.onDrop(() => {
     for (const { minutes, book } of watched.values()) {
       if (minutes) minutes.live = false;
 

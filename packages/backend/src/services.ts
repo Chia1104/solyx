@@ -35,12 +35,12 @@ import { createFinMind } from "@solyx/fundamentals/finmind";
 import { createLongbridgeFundamentals } from "@solyx/fundamentals/longbridge";
 import { createSitca } from "@solyx/fundamentals/sitca";
 import { createTwExchanges } from "@solyx/fundamentals/tw-exchanges";
+import { createLongbridge } from "@solyx/longbridge/client";
 import { createCbc } from "@solyx/macro/cbc";
 import { createDgbas } from "@solyx/macro/dgbas";
 import { createLongbridgeMacro } from "@solyx/macro/longbridge";
 import { createStatGovTw } from "@solyx/macro/stat-gov-tw";
 import { createTreasury } from "@solyx/macro/treasury";
-import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
 
 import type { Host } from "./host.ts";
 import { createAgentService } from "./modules/agent/agent-service.ts";
@@ -264,15 +264,17 @@ export function createServices(config: ConfigFile, host: Host) {
     onChange: () => void windowEvents.publish("devices:changed", {}),
   });
 
-  // One Longbridge sign-in serves US quotes, fundamentals, filings and economic figures alike, its
-  // HTTP API's budget shared by everything that reads it.
   const longbridge = createLongbridgeAccess({
     secrets,
     openExternal: host.openExternal,
   });
 
-  const longbridgeApi = createLongbridgeApi({
+  // One Longbridge sign-in serves US quotes, fundamentals, filings and economic figures alike,
+  // every request of them within the one budget Longbridge allows an account.
+  const longbridgeClient = createLongbridge({
     accessToken: () => longbridge.accessToken(),
+    onRateLimited: (error) =>
+      diagnostics.recovered(error, "longbridge.rate-limited"),
   });
 
   const marketDataSources = createMarketDataSources({
@@ -283,7 +285,7 @@ export function createServices(config: ConfigFile, host: Host) {
     openFubonProcess: host.openFubonProcess,
     tradesFubon,
     longbridge,
-    longbridgeApi,
+    longbridgeClient,
     tradingDays: (market) => marketDays(market),
   });
 
@@ -376,7 +378,7 @@ export function createServices(config: ConfigFile, host: Host) {
     diagnostics,
     sources: createNewsSources(() => webSearch.vendor(), {
       signedIn: () => longbridge.signedIn(),
-      api: longbridgeApi,
+      api: longbridgeClient,
     }),
     store: newsData.store,
     scorer: () => decisions.scorer(),
@@ -398,7 +400,10 @@ export function createServices(config: ConfigFile, host: Host) {
   const twExchanges = createTwExchanges();
 
   const fundamentals = createFundamentals({
-    providers: [finMind, createLongbridgeFundamentals({ api: longbridgeApi })],
+    providers: [
+      finMind,
+      createLongbridgeFundamentals({ api: longbridgeClient }),
+    ],
     exchanges: [twExchanges],
     fundReports: [createSitca()],
     answers: cache.answers,
@@ -446,7 +451,7 @@ export function createServices(config: ConfigFile, host: Host) {
     }
   );
 
-  const usMacro = createLongbridgeMacro({ api: longbridgeApi });
+  const usMacro = createLongbridgeMacro({ api: longbridgeClient });
 
   // The statistics portal's server leaves its intermediate certificate out, which Node's fetch does not make up for.
   const macro = createMacro({

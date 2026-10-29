@@ -11,11 +11,11 @@ import {
   longbridgeSignInSchema,
   refreshLongbridgeSignIn,
   registerLongbridgeClient,
-} from "@solyx/market-data/longbridge-sign-in";
+} from "@solyx/longbridge/sign-in";
 import type {
   LongbridgeClient,
   LongbridgeSignIn,
-} from "@solyx/market-data/longbridge-sign-in";
+} from "@solyx/longbridge/sign-in";
 import { MINUTE_MS } from "@solyx/utils/date";
 import { parseJson } from "@solyx/utils/json";
 import { pkceChallenge, randomToken } from "@solyx/utils/server";

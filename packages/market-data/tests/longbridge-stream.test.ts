@@ -12,13 +12,13 @@ import type {
 } from "@solyx/core/market-data";
 import { weekdays } from "@solyx/core/session";
 import type { TradingDays } from "@solyx/core/session";
-
-import { LongbridgeError } from "../src/longbridge-api.ts";
-import { createLongbridgeStream } from "../src/longbridge-stream.ts";
+import { LongbridgeError } from "@solyx/longbridge/client";
 import type {
+  Longbridge,
   LongbridgePushListener,
-  LongbridgeSocket,
-} from "../src/longbridge.ts";
+} from "@solyx/longbridge/client";
+
+import { createLongbridgeStream } from "../src/longbridge-stream.ts";
 
 const APPLE = { market: Market.US, symbol: "AAPL" };
 
@@ -64,14 +64,14 @@ function subscription({ body }: Sent) {
   return { symbols, types, first };
 }
 
-/** Plays a sign-in's connection: every request answered unless a test says otherwise. */
-function fakeSocket() {
+/** Plays a sign-in's Longbridge connection: every request answered unless a test says otherwise. */
+function fakeLongbridge() {
   const sent: Sent[] = [];
   const pushes = new Set<LongbridgePushListener>();
   const drops = new Set<() => void>();
   let refuse: ((sent: Sent) => Error | undefined) | undefined;
 
-  const socket: LongbridgeSocket = {
+  const longbridge: Pick<Longbridge, "request" | "onPush" | "onDrop"> = {
     async request(command, body) {
       const request = { command, body };
 
@@ -93,11 +93,10 @@ function fakeSocket() {
 
       return () => drops.delete(listener);
     },
-    close: () => undefined,
   };
 
   return {
-    socket,
+    longbridge,
     sent,
     subscriptions: (command: number) =>
       sent.filter((request) => request.command === command).map(subscription),
@@ -274,11 +273,11 @@ function setup({
   depth?: Depth | null;
   tradingDays?: TradingDays;
 } = {}) {
-  const fake = fakeSocket();
+  const fake = fakeLongbridge();
   const asked: CandleRequest[] = [];
 
   const stream = createLongbridgeStream({
-    socket: fake.socket,
+    longbridge: fake.longbridge,
     provider: {
       async getCandles(request) {
         asked.push(request);

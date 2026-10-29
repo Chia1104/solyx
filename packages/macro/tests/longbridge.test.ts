@@ -3,7 +3,7 @@ import { expect, test } from "vite-plus/test";
 import { EventTiming } from "@solyx/core/calendar";
 import { MacroFigure, MacroIndicator, MacroUnit } from "@solyx/core/macro";
 import { Market } from "@solyx/core/market";
-import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
+import { createLongbridge } from "@solyx/longbridge/client";
 
 import { createLongbridgeMacro } from "../src/longbridge.ts";
 
@@ -195,7 +195,7 @@ function fakeLongbridge(answers = ANSWERS) {
   return {
     asked,
     macro: createLongbridgeMacro({
-      api: createLongbridgeApi({ accessToken: async () => "hk_access", fetch }),
+      api: createLongbridge({ accessToken: async () => "hk_access", fetch }),
     }),
   };
 }

@@ -4,7 +4,7 @@ import * as z from "zod";
 import { Market } from "@solyx/core/market";
 import { NewsChannel, TimePrecision } from "@solyx/core/news";
 import type { NewsItem, NewsQuery, NewsSource } from "@solyx/core/news";
-import type { LongbridgeApi } from "@solyx/market-data/longbridge-api";
+import type { Longbridge } from "@solyx/longbridge/client";
 
 /** What each form a US company files says it is, as the SEC names it. */
 const FORMS = new Map([
@@ -61,7 +61,7 @@ const formOf = (title: string) => /\|\s*(.+?)\s+-\s+/.exec(title)?.[1]?.trim();
 
 export interface LongbridgeFilingsOptions {
   /** The sign-in's HTTP API, whose budget its other readers share. */
-  api: LongbridgeApi;
+  api: Pick<Longbridge, "read">;
 }
 
 function filingItem(filing: Filing, form: string): NewsItem {

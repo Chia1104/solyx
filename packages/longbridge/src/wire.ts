@@ -2,8 +2,6 @@ import { gunzipSync } from "node:zlib";
 
 import { BinaryReader, BinaryWriter, WireType } from "@bufbuild/protobuf/wire";
 
-import type { DepthLevel } from "@solyx/core/market-data";
-
 // Field numbers follow Longbridge's quote protocol as its docs and its SDK (MIT OR Apache-2.0) set
 // them; only the messages this client sends or reads are written out.
 
@@ -426,18 +424,6 @@ export function price(text: string): number | null {
 
   return Number.isFinite(value) ? value : null;
 }
-
-/** One side of a book, best first, without the empty levels Longbridge pads it with. */
-export const bookSide = (levels: readonly BookEntry[]): DepthLevel[] =>
-  levels
-    .toSorted((a, b) => a.position - b.position)
-    .flatMap(({ price: text, volume }) => {
-      const value = price(text);
-
-      return value === null || volume === 0
-        ? []
-        : [{ price: value, shares: volume }];
-    });
 
 export function decodeDepth(body: Uint8Array) {
   const fields = readFields(body);

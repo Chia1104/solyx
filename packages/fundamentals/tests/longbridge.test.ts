@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
 import { Market, exchangeMidnight } from "@solyx/core/market";
-import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
+import { createLongbridge } from "@solyx/longbridge/client";
 
 import { createLongbridgeFundamentals } from "../src/longbridge.ts";
 
@@ -105,7 +105,7 @@ function fakeLongbridge(answers: Answers, { limited = 0 } = {}) {
   return {
     asked,
     longbridge: createLongbridgeFundamentals({
-      api: createLongbridgeApi({ accessToken: async () => TOKEN, fetch }),
+      api: createLongbridge({ accessToken: async () => TOKEN, fetch }),
     }),
   };
 }
@@ -453,7 +453,7 @@ test("a request Longbridge refuses as too frequent is tried again, and one refus
   ).rejects.toThrow(
     `Longbridge refused the statements of AAPL: ${RATE_LIMITED}`
   );
-  expect(always.asked).toHaveLength(6);
+  expect(always.asked).toHaveLength(5);
 });
 
 test("a row that does not read is dropped, but an answer none of whose rows read fails", async () => {
@@ -486,7 +486,7 @@ test("a row that does not read is dropped, but an answer none of whose rows read
 
 test("a read while signed out fails with the sign-in's reason", async () => {
   const longbridge = createLongbridgeFundamentals({
-    api: createLongbridgeApi({
+    api: createLongbridge({
       accessToken: async () => {
         throw new Error(
           "Sign in to Longbridge in Settings for US quotes and fundamentals"

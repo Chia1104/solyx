@@ -1,13 +1,13 @@
 import { expect, test } from "vite-plus/test";
 
-import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
+import { createLongbridge } from "@solyx/longbridge/client";
 
 import { createNewsSources } from "../src/modules/news/news-sources.ts";
 
 function longbridge(signedIn: boolean) {
   return {
     signedIn: async () => signedIn,
-    api: createLongbridgeApi({ accessToken: async () => "hk_access" }),
+    api: createLongbridge({ accessToken: async () => "hk_access" }),
   };
 }
 

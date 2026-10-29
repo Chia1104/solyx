@@ -17,8 +17,8 @@ import type { FubonSessionOptions } from "@solyx/brokers/fubon";
 import { Market } from "@solyx/core/market";
 import { weekdays } from "@solyx/core/session";
 import { openCache } from "@solyx/db/cache";
+import { createLongbridge } from "@solyx/longbridge/client";
 import { FuglePlan } from "@solyx/market-data/fugle";
-import { createLongbridgeApi } from "@solyx/market-data/longbridge-api";
 import { DAY_MS } from "@solyx/utils/date";
 
 import type { FubonProcess } from "../src/modules/market/fubon-client.ts";
@@ -110,7 +110,7 @@ function setup({ tradesFubon = false } = {}) {
     openFubonProcess,
     tradesFubon,
     longbridge,
-    longbridgeApi: createLongbridgeApi({
+    longbridgeClient: createLongbridge({
       accessToken: () => longbridge.accessToken(),
     }),
     tradingDays: async () => weekdays,

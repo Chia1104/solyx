@@ -9,7 +9,7 @@ import type {
 } from "@solyx/core/fundamentals";
 import { Market, exchangeDate } from "@solyx/core/market";
 import type { SymbolRef } from "@solyx/core/market";
-import type { LongbridgeApi } from "@solyx/market-data/longbridge-api";
+import type { Longbridge } from "@solyx/longbridge/client";
 
 import { readRows } from "./rows.ts";
 
@@ -83,7 +83,7 @@ const DISTRIBUTION = "DividendExDate";
 
 export interface LongbridgeFundamentalsOptions {
   /** The sign-in's HTTP API, whose budget its other readers share. */
-  api: LongbridgeApi;
+  api: Pick<Longbridge, "read">;
 }
 
 /** A figure as Longbridge writes it; `null` for the empty text it sends for none. */
