@@ -124,6 +124,9 @@ const FINE_PERCENT: Intl.NumberFormatOptions = {
 
 const SLIPPAGE: Bounds = { min: 0, max: 20, step: 1 };
 
+// The share of a dividend withheld, in whole percent as the US's 30% is.
+const WITHHELD: Bounds = { min: 0, max: 1, step: 0.01 };
+
 // A walk forward's sessions, empty for its defaults.
 const SESSIONS: Bounds = { min: 5, max: 5_000, step: 1 };
 
@@ -147,6 +150,7 @@ function NumberControl({
     | ExitParam
     | "capital"
     | "commissionRate"
+    | "dividendTaxRate"
     | "slippageTicks"
     | "train"
     | "test";
@@ -817,6 +821,13 @@ export function BacktestForm({
           name="slippageTicks"
           label={t("backtests.form.slippage")}
           param={SLIPPAGE}
+        />
+        <NumberControl
+          control={form.control}
+          name="dividendTaxRate"
+          label={t("backtests.form.dividend-tax")}
+          param={WITHHELD}
+          formatOptions={WHOLE_PERCENT}
         />
       </div>
       <Button

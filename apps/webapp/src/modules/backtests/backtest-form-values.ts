@@ -146,6 +146,7 @@ export function useFormSchema(mode: BacktestMode) {
         split: z.number(),
         capital: number.positive({ error: t("backtests.form.positive") }),
         commissionRate: number.min(0),
+        dividendTaxRate: number.min(0).max(1),
         slippageTicks: number.int().min(0),
         rows: axisSchema,
         columns: axisSchema,
@@ -309,6 +310,7 @@ export function formValues(
     split: "split" in setup ? setup.split : DEFAULT_SPLIT,
     capital: setup.capital ?? DEFAULT_CAPITAL,
     commissionRate: costs.commissionRate,
+    dividendTaxRate: costs.dividendTaxRate,
     slippageTicks: costs.slippageTicks,
     rows: grid.rows,
     columns: grid.columns,
@@ -378,6 +380,7 @@ const reach = (symbol: SymbolRef, values: FormValues) => ({
   capital: values.capital,
   costs: {
     commissionRate: values.commissionRate,
+    dividendTaxRate: values.dividendTaxRate,
     slippageTicks: values.slippageTicks,
   },
 });

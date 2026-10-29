@@ -1,5 +1,5 @@
 import { median, percentile } from "es-toolkit";
-import { describe, expect, test } from "vite-plus/test";
+import { describe, expect, test, vi } from "vite-plus/test";
 
 import { kernel } from "@solyx/kernel/kernel";
 
@@ -31,6 +31,7 @@ import type {
 } from "../src/backtest.ts";
 import { Interval, candleDate } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
+import type { Dividend } from "../src/fundamentals.ts";
 import { sma } from "../src/indicators.ts";
 import { Market } from "../src/market.ts";
 
@@ -70,6 +71,17 @@ const NO_COSTS = {
   sellTaxRate: 0,
   slippageTicks: 0,
 };
+
+/** Cash of `cash` a share, going ex on `cashExDate`. */
+const dividend = (cashExDate: string, cash: number): Dividend => ({
+  period: "2025",
+  announced: null,
+  cash,
+  stock: 0,
+  cashExDate,
+  cashPaidOn: null,
+  stockExDate: null,
+});
 
 // Buys once the close rises past 100, sells once it falls back under it.
 const THRESHOLD: RuleStrategy = {
@@ -123,6 +135,7 @@ test("a Taiwan trade pays the broker's commission, at least its minimum, the tax
     commissionRate: 0.001425,
     minCommission: 20,
     sellTaxRate: 0.003,
+    dividendTaxRate: 0,
     slippageTicks: 1,
   });
   expect(defaultCosts({ market: Market.TW, symbol: "0050" }).sellTaxRate).toBe(
@@ -157,6 +170,16 @@ test("a Taiwan trade pays the broker's commission, at least its minimum, the tax
       sold * 0.003 -
       (bought + Math.max(bought * 0.001425, 20))
   );
+});
+
+test("a US trade pays no commission, the SEC's fee on a sale and a tick each way, and a Taiwan resident's tax is withheld from its dividends", () => {
+  expect(defaultCosts({ market: Market.US, symbol: "AAPL" })).toEqual({
+    commissionRate: 0,
+    minCommission: 0,
+    sellTaxRate: 0.0000206,
+    dividendTaxRate: 0.3,
+    slippageTicks: 1,
+  });
 });
 
 test("a stop sells once a close falls past it, and a position held at the end counts in no record", async () => {
@@ -405,6 +428,64 @@ describe("splits and what went ex", () => {
     ]);
     expect(result.all.totalReturn).toBeCloseTo(97 / 96 - 1);
     expect(result.all.buyAndHold).toBeCloseTo(97 / 96 - 1);
+  });
+
+  // Went ex of 4 on the fourth bar, 2026-01-08, of which 30% is withheld.
+  const wentEx = bars([100, 100, 100, 96, 97], (index) =>
+    index === 3 ? { open: 96, low: 96, reference: 96 } : {}
+  );
+
+  const WITHHELD = { ...NO_COSTS, dividendTaxRate: 0.3 };
+
+  test("the tax withheld from what went ex while held is not bought back in, and holding pays it too", async () => {
+    const result = await backtest(kernel, TSMC, wentEx, holding, {
+      capital: 10_000,
+      costs: WITHHELD,
+      dividends: [dividend("2026-01-08", 4)],
+    });
+
+    const kept = 100 - 4 * 0.3;
+
+    expect(result.equity.map(({ value }) => value)).toEqual([
+      10_000,
+      10_000,
+      10_000,
+      expect.closeTo(100 * kept),
+      expect.closeTo(((100 * kept) / 96) * 97),
+    ]);
+    expect(result.all.totalReturn).toBeCloseTo((kept / 96) * (97 / 100) - 1);
+    expect(result.all.buyAndHold).toBeCloseTo(result.all.totalReturn);
+    expect(result.holding.at(-1)?.value).toBeCloseTo(
+      result.equity.at(-1)?.value ?? 0
+    );
+    expect(result.costs.dividendTaxRate).toBe(0.3);
+  });
+
+  test("tax is withheld from no more cash than the reference made up for", async () => {
+    // The reference made up for 2 of the 4 that went ex, and nothing went ex on the last bar.
+    const result = await backtest(
+      kernel,
+      TSMC,
+      bars([100, 100, 100, 98, 99], (index) =>
+        index === 3 ? { open: 98, low: 98, reference: 98 } : {}
+      ),
+      holding,
+      {
+        capital: 10_000,
+        costs: WITHHELD,
+        dividends: [dividend("2026-01-08", 4), dividend("2026-01-09", 1)],
+      }
+    );
+
+    expect(result.all.totalReturn).toBeCloseTo(
+      ((100 - 2 * 0.3) / 98) * (99 / 100) - 1
+    );
+  });
+
+  test("a run that withholds tax from dividends fails without the listing's distributions", async () => {
+    await expect(
+      backtest(kernel, TSMC, wentEx, holding, { costs: WITHHELD })
+    ).rejects.toThrow("needs its distributions");
   });
 
   test("a rule against a price reads it as traded, whatever later bars went ex of", async () => {
@@ -751,6 +832,31 @@ describe("bars shorter than a day", () => {
       { date: "2026-01-05", value: 10_000 },
       { date: "2026-01-06", value: expect.closeTo((10_000 / 90) * 91) },
     ]);
+  });
+
+  test("the tax withheld from what went ex is taken once, at its session's first bar", async () => {
+    const sessions = [
+      [100, 100],
+      [90, 91],
+    ];
+
+    const result = await backtest(
+      kernel,
+      TSMC,
+      minutes(sessions, (session, index) =>
+        session === 1 && index === 0 ? { open: 90, low: 90 } : {}
+      ),
+      above(0),
+      {
+        ...MINUTE,
+        costs: { ...NO_COSTS, dividendTaxRate: 0.3 },
+        daily: daily(sessions, (session) => (session === 1 ? 90 : undefined)),
+        dividends: [dividend("2026-01-06", 10)],
+      }
+    );
+
+    expect(result.equity.at(-1)?.value).toBeCloseTo((97 / 90) * 91 * 100);
+    expect(result.all.buyAndHold).toBeCloseTo((97 / 90) * (91 / 100) - 1);
   });
 });
 
@@ -1275,11 +1381,42 @@ describe("a strategy's work is bounded before it runs", () => {
 describe("a backtest's bars", () => {
   const daily = bars([100, 101, 102, 103, 104, 105, 106, 107]);
 
+  const paid = [dividend("2026-01-08", 1)];
+
   const source = {
     candles: async () => daily,
     // As a source does, it reads at least its own lookback, before `since` too.
     candlesSince: async () => daily,
+    dividends: vi.fn(async () => paid),
   };
+
+  test("read the listing's distributions only where the costs withhold tax from them", async () => {
+    const { dividends: none } = await backtestBars(
+      source,
+      TSMC,
+      Interval.OneDay
+    );
+
+    expect(none).toBeUndefined();
+    expect(source.dividends).not.toHaveBeenCalled();
+
+    const { dividends: taiwan } = await backtestBars(
+      source,
+      TSMC,
+      Interval.OneDay,
+      undefined,
+      { dividendTaxRate: 0.3 }
+    );
+
+    const { dividends: us } = await backtestBars(
+      source,
+      { market: Market.US, symbol: "AAPL" },
+      Interval.OneDay
+    );
+
+    expect(taiwan).toBe(paid);
+    expect(us).toBe(paid);
+  });
 
   test("start at since, whatever the source read before it", async () => {
     const { bars: read, daily: references } = await backtestBars(

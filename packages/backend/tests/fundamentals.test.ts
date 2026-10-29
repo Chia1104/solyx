@@ -200,7 +200,7 @@ function setup(answers = memoryAnswers()) {
   return { clock, provider, lists, reports, fundamentals };
 }
 
-test("asks the market's provider for five years of quarters and dividends, and three of balance sheets, cash flows and months", async () => {
+test("asks the market's provider for ten years of dividends, five of quarters and three of balance sheets, cash flows and months", async () => {
   const { provider, fundamentals } = setup();
 
   await fundamentals.statements(TSMC);
@@ -213,7 +213,7 @@ test("asks the market's provider for five years of quarters and dividends, and t
   expect(provider.getBalanceSheets).toHaveBeenCalledWith(TSMC, "2023-10-07");
   expect(provider.getCashFlows).toHaveBeenCalledWith(TSMC, "2023-10-07");
   expect(provider.getMonthlyRevenue).toHaveBeenCalledWith(TSMC, "2023-10");
-  expect(provider.getDividends).toHaveBeenCalledWith(TSMC, "2021-10-07");
+  expect(provider.getDividends).toHaveBeenCalledWith(TSMC, "2016-10-07");
 });
 
 test("names the provider that covers a market, and none for a market without one", () => {

@@ -41,7 +41,7 @@ import type { BacktestRunStore } from "@solyx/db/user";
 import type { Strategies } from "../strategies/strategies.ts";
 
 export interface BacktestsOptions {
-  /** Read through the candle cache, as the agent's backtests read them. */
+  /** A listing's bars through the candle cache and its distributions through the fundamentals module, as the agent's backtests read them. */
   marketData: BacktestBarsSource;
   kernel: BacktestKernel;
   /** Where the windows' runs are kept. */
@@ -67,12 +67,18 @@ export function createBacktests({
   onHistoryChange,
   now = () => new Date(),
 }: BacktestsOptions) {
-  const listingBars = (symbol: SymbolRef, interval: Interval, years: number) =>
+  const listingBars = (
+    symbol: SymbolRef,
+    interval: Interval,
+    years: number,
+    costs: BacktestOptions["costs"]
+  ) =>
     backtestBars(
       marketData,
       symbol,
       interval,
-      yearsBefore(symbol.market, years, now())
+      yearsBefore(symbol.market, years, now()),
+      costs
     );
 
   function keep(request: BacktestRequest, headline: BacktestHeadline | null) {
@@ -154,7 +160,7 @@ export function createBacktests({
     split,
     ...options
   }: BacktestSetup) {
-    const read = await listingBars(symbol, interval, years);
+    const read = await listingBars(symbol, interval, years, options.costs);
 
     const { rules, lines, lookAhead } = await ruled(
       { symbol, interval },
@@ -167,6 +173,7 @@ export function createBacktests({
       ...options,
       interval,
       daily: read.daily,
+      dividends: read.dividends,
       split: { share: split },
       lines: lines?.[0],
     };
@@ -197,7 +204,7 @@ export function createBacktests({
 
     async scan(setup: ScanSetup) {
       const { symbol, interval, years, capital, costs, columns, split } = setup;
-      const read = await listingBars(symbol, interval, years);
+      const read = await listingBars(symbol, interval, years, costs);
       const grid = await gridRules(setup, read);
 
       const scan = await scanBacktests(kernel, symbol, read.bars, grid.rules, {
@@ -205,6 +212,7 @@ export function createBacktests({
         costs,
         interval,
         daily: read.daily,
+        dividends: read.dividends,
         split: { share: split },
         columns: axisValues(columns).length,
         lines: grid.lines,
@@ -224,7 +232,7 @@ export function createBacktests({
       const { symbol, interval, years, capital, costs, columns, train, test } =
         setup;
 
-      const read = await listingBars(symbol, interval, years);
+      const read = await listingBars(symbol, interval, years, costs);
       const grid = await gridRules(setup, read);
 
       const walked = await walkForward(kernel, symbol, read.bars, grid.rules, {
@@ -234,6 +242,7 @@ export function createBacktests({
         test,
         interval,
         daily: read.daily,
+        dividends: read.dividends,
         columns: axisValues(columns).length,
         lines: grid.lines,
       });
@@ -245,7 +254,7 @@ export function createBacktests({
 
     async rolling(setup: RollingSetup) {
       const { symbol, interval, years, strategy, ...options } = setup;
-      const read = await listingBars(symbol, interval, years);
+      const read = await listingBars(symbol, interval, years, options.costs);
 
       const { rules, lines, lookAhead } = await ruled(setup, read, strategy, [
         "name" in strategy ? strategy.params : {},
@@ -260,6 +269,7 @@ export function createBacktests({
           ...options,
           interval,
           daily: read.daily,
+          dividends: read.dividends,
           lines: lines?.[0],
         }
       );

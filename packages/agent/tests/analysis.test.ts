@@ -6,12 +6,14 @@ import {
 } from "@earendil-works/pi-ai";
 import { MemoryStorage } from "@earendil-works/pi-durable";
 import { afterEach, expect, test, vi } from "vite-plus/test";
+import * as z from "zod";
 
 import { BrokerMode } from "@solyx/core/broker";
 import { Interval } from "@solyx/core/candles";
 import type { Candle } from "@solyx/core/candles";
 import { Investor } from "@solyx/core/flows";
 import type { InvestorTrades } from "@solyx/core/flows";
+import type { Dividend } from "@solyx/core/fundamentals";
 import { Market } from "@solyx/core/market";
 import { SectorGroup, TwSector } from "@solyx/core/sectors";
 import { kernel } from "@solyx/kernel/kernel";
@@ -148,12 +150,17 @@ afterEach(async () => {
 const analyzeOver = (bars: Candle[], ...scripts: string[]) =>
   analyzeWith({ bars }, ...scripts);
 
-/** As `analyzeOver`, with the user's strategies where `strategies` gives them. */
+/** As `analyzeOver`, with the user's strategies where `strategies` gives them and the distributions `dividends` gives. */
 async function analyzeWith(
   {
     bars,
     strategies,
-  }: { bars: Candle[]; strategies?: AnalysisPorts["strategies"] },
+    dividends = [],
+  }: {
+    bars: Candle[];
+    strategies?: AnalysisPorts["strategies"];
+    dividends?: Dividend[];
+  },
   ...scripts: string[]
 ) {
   const faux = fauxProvider();
@@ -163,6 +170,7 @@ async function analyzeWith(
   const candlesSince = vi.fn(async () => bars);
   const sources = fakeSources();
 
+  sources.fundamentals.dividends.mockResolvedValue(dividends);
   models.setProvider(faux.provider);
 
   const runner = createScriptRunner();
@@ -313,6 +321,53 @@ test("a script backtests rules over the listing's bars, which the engine reads a
   ]);
   expect(description).toContain("type Strategy = { entry: Condition;");
   expect(description).toContain("declare const backtest: {");
+});
+
+test("a script's backtest of a US listing withholds tax from what went ex while held, and holding pays it too", async () => {
+  // Went ex of 2 on 2025-06-25, the eleventh bar, from a close of 110.
+  const bars = risingBars(30).map((bar, index) =>
+    index === 10 ? { ...bar, reference: 108 } : bar
+  );
+
+  const { results, sources } = await analyzeWith(
+    {
+      bars,
+      dividends: [
+        {
+          period: "Q2 2025",
+          announced: "2025-06-01",
+          cash: 2,
+          stock: 0,
+          cashExDate: "2025-06-25",
+          cashPaidOn: "2025-07-15",
+          stockExDate: null,
+        },
+      ],
+    },
+    `
+    const symbol = { market: "${Market.US}", symbol: "KO" };
+    const strategy = {
+      entry: { above: [{ price: "close" }, { value: 0 }] },
+      exit: { below: [{ price: "close" }, { value: 0 }] },
+    };
+    const withheld = await backtest.rules({ symbol, strategy });
+    const kept = await backtest.rules({ symbol, strategy, costs: { dividendTaxRate: 0 } });
+    return [withheld.costs.dividendTaxRate, withheld.all.buyAndHold, kept.all.buyAndHold];
+  `
+  );
+
+  const [rate, withheld, kept] = z
+    .tuple([z.number(), z.number(), z.number()])
+    .parse(JSON.parse(results[0].output.replace("Result: ", "")));
+
+  expect(rate).toBe(0.3);
+  expect(withheld).toBeCloseTo((130 * (110 - 2 * 0.3)) / (108 * 101) - 1);
+  expect(kept).toBeCloseTo((130 * 110) / (108 * 101) - 1);
+  expect(sources.fundamentals.dividends).toHaveBeenCalledOnce();
+  expect(sources.fundamentals.dividends).toHaveBeenCalledWith({
+    market: Market.US,
+    symbol: "KO",
+  });
 });
 
 test("a script scans a grid of strategies and walks them forward over the same bars", async () => {

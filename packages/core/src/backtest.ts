@@ -30,6 +30,7 @@ import {
   withSessionMoves,
 } from "./candles.ts";
 import type { Candle } from "./candles.ts";
+import type { Dividend } from "./fundamentals.ts";
 import { bollinger, ema, kd, macd, rsi, sma } from "./indicators.ts";
 import type { IndicatorLine } from "./indicators.ts";
 import { Market, symbolLabel } from "./market.ts";
@@ -41,6 +42,7 @@ import {
   twPriceLimits,
   twSellTaxRate,
 } from "./rules/tw.ts";
+import { US_DIVIDEND_WITHHOLDING, US_SEC_FEE_RATE } from "./rules/us.ts";
 
 const period = z.number().int().min(1).max(500);
 
@@ -224,29 +226,45 @@ export const ruleStrategySchema = z
 
 export type RuleStrategy = z.infer<typeof ruleStrategySchema>;
 
-/** What a trade costs, each a fraction of its value but the minimum commission and the slippage. */
+/**
+ * What trading and holding cost, each a fraction of a trade's value or of the cash gone ex but the
+ * minimum commission and the slippage.
+ */
 export const tradeCostsSchema = z.strictObject({
   commissionRate: z.number().min(0).max(0.01),
   /** In the market's currency. */
   minCommission: z.number().min(0),
-  /** Paid on sales alone, as Taiwan's securities transaction tax is. */
+  /** Paid on sales alone, as Taiwan's securities transaction tax and the SEC's fee on US sales are. */
   sellTaxRate: z.number().min(0).max(0.01),
+  /** Withheld from the cash a holding goes ex of, as the US withholds tax from a Taiwan resident's dividends. */
+  dividendTaxRate: z.number().min(0).max(1),
   /** Ticks the fill gives away from the open: above it to buy, below it to sell. */
   slippageTicks: z.number().int().min(0).max(20),
 });
 
 export type TradeCosts = z.infer<typeof tradeCostsSchema>;
 
-/** What a trade in `symbol` costs where nobody says otherwise: a Taiwan broker's full commission and the tax, a tick of slippage. */
+/**
+ * What trading `symbol` costs where nobody says otherwise, a tick of slippage among it: in Taiwan a
+ * broker's full commission and the tax on sales; in the US no commission, as at a broker that
+ * charges none, the SEC's fee on sales and the tax withheld from a Taiwan resident's dividends.
+ */
 export function defaultCosts({ market, symbol }: SymbolRef): TradeCosts {
   return market === Market.TW
     ? {
         commissionRate: TW_COMMISSION_RATE,
         minCommission: TW_MIN_COMMISSION,
         sellTaxRate: twSellTaxRate(symbol),
+        dividendTaxRate: 0,
         slippageTicks: 1,
       }
-    : { commissionRate: 0, minCommission: 0, sellTaxRate: 0, slippageTicks: 1 };
+    : {
+        commissionRate: 0,
+        minCommission: 0,
+        sellTaxRate: US_SEC_FEE_RATE,
+        dividendTaxRate: US_DIVIDEND_WITHHOLDING,
+        slippageTicks: 1,
+      };
 }
 
 export interface BacktestTrade {
@@ -285,7 +303,8 @@ export interface BacktestResult {
   equity: { date: string; value: number }[];
   /**
    * What the capital would have been worth at each session's close had it bought the listing at
-   * the first close and held it, before costs, as `buyAndHold` reads it.
+   * the first close and held it, before the costs of trading but with the tax withheld from what
+   * went ex, as `buyAndHold` reads it.
    */
   holding: { date: string; value: number }[];
   all: BacktestMetrics;
@@ -341,7 +360,7 @@ export interface WalkForwardResult {
   efficiency: number | null;
   /** The account's value at each session's close from the first test on. */
   equity: { date: string; value: number }[];
-  /** What holding the listing from the close before the first test would have been worth at each of those closes, before costs. */
+  /** What holding the listing from the close before the first test would have been worth at each of those closes, as `BacktestResult.holding` reads it. */
   holding: { date: string; value: number }[];
 }
 
@@ -409,6 +428,8 @@ export interface BacktestOptions {
    * reference, its limits and what went ex or split at it come from them.
    */
   daily?: readonly Candle[];
+  /** The listing's distributions, which a run whose costs withhold tax from dividends needs, as `backtestBars` reads them. */
+  dividends?: readonly Dividend[];
   /** What the strategy's own code worked out over `strategyBars` of the same bars, which its rules read as `line`. */
   lines?: StrategyLines;
 }
@@ -700,7 +721,7 @@ export const distinctSeries = (strategies: readonly RuleStrategy[]) =>
     )
   ).size;
 
-/** Where a backtest reads a listing's bars: the app's own history, or from a day on. */
+/** Where a backtest reads a listing's bars, the app's own history or from a day on, and its distributions. */
 export interface BacktestBarsSource {
   candles(symbol: SymbolRef, interval: Interval): Promise<Candle[]>;
   /** From `since`, `YYYY-MM-DD` on the exchange's calendar, on. */
@@ -709,18 +730,21 @@ export interface BacktestBarsSource {
     interval: Interval,
     since: string
   ): Promise<Candle[]>;
+  /** Back at least as far as the bars a backtest reads. */
+  dividends(symbol: SymbolRef): Promise<Dividend[]>;
 }
 
 /**
  * A listing's `interval` bars as a backtest reads them, over the app's own history or from `since`
- * on, and where they are shorter than a day its daily bars over the same reach, which their
- * sessions' references come from.
+ * on; where they are shorter than a day, its daily bars over the same reach, which their sessions'
+ * references come from; and where `costs` withhold tax from dividends, its distributions.
  */
 export async function backtestBars(
   source: BacktestBarsSource,
   symbol: SymbolRef,
   interval: Interval,
-  since?: string
+  since?: string,
+  costs?: Partial<TradeCosts>
 ) {
   // A source reads at least its own lookback, so bars before `since` are left out here.
   const read = async (each: Interval) =>
@@ -744,10 +768,14 @@ export async function backtestBars(
     );
   }
 
-  return {
-    bars,
-    daily: isIntraday(interval) ? await read(Interval.OneDay) : undefined,
-  };
+  const { dividendTaxRate } = { ...defaultCosts(symbol), ...costs };
+
+  const [daily, dividends] = await Promise.all([
+    isIntraday(interval) ? read(Interval.OneDay) : undefined,
+    dividendTaxRate > 0 ? source.dividends(symbol) : undefined,
+  ]);
+
+  return { bars, daily, dividends };
 }
 
 // A price read as at a limit within this of it, so a limit rebuilt from ticks matches the bar's.
@@ -840,43 +868,78 @@ function limitLocks(
   return daily ? intradayLocks(symbol, bars, days, daily) : dailyLocks(bars);
 }
 
+/** The cash a share went ex of on each session, by its epoch day, summed where several went ex at once. */
+function cashGoneExOn(dividends: readonly Dividend[]) {
+  const cash = new Map<number, number>();
+
+  for (const dividend of dividends) {
+    if (dividend.cashExDate === null || dividend.cash <= 0) continue;
+
+    const day = dateEpochDay(dividend.cashExDate);
+
+    cash.set(day, (cash.get(day) ?? 0) + dividend.cash);
+  }
+
+  return cash;
+}
+
 /**
- * What the kernel reads of each bar's prices: its open and close as traded and adjusted, what a
- * holding's shares are carried over by at it, and what a buy and a sale fill at on its open.
+ * What the kernel reads of each bar's prices: its open and close as traded and as a holding
+ * carries over them, what a holding's shares are carried over by at it, and what a buy and a sale
+ * fill at on its open. Tax is withheld from no more cash than the session's reference made up for,
+ * so a source whose references miss a payout withholds nothing from it.
  */
 function priceColumns(
   symbol: SymbolRef,
   bars: readonly Candle[],
-  adjusted: readonly Candle[],
-  slippageTicks: number
+  days: Int32Array,
+  costs: TradeCosts,
+  dividends: readonly Dividend[]
 ) {
   const slipped = (price: number, up: boolean) => {
     const tick = tickSize(symbol, price);
-    const moved = price + (up ? 1 : -1) * tick * slippageTicks;
+    const moved = price + (up ? 1 : -1) * tick * costs.slippageTicks;
 
     return Math.max(moved, tick);
   };
+
+  const goneEx = cashGoneExOn(dividends);
 
   const open = new Float64Array(bars.length);
   const close = new Float64Array(bars.length);
   const adjustedOpen = new Float64Array(bars.length);
   const adjustedClose = new Float64Array(bars.length);
+  const factor = new Float64Array(bars.length);
   const carry = new Float64Array(bars.length);
   const buyPrice = new Float64Array(bars.length);
   const sellPrice = new Float64Array(bars.length);
+
+  let carried = 1;
 
   for (let index = 0; index < bars.length; index++) {
     const bar = bars[index];
     const { reference } = bar;
 
+    carry[index] = 1;
+
+    if (index > 0 && reference !== undefined) {
+      const before = bars[index - 1].close;
+
+      const cash =
+        days[index] === days[index - 1] ? 0 : (goneEx.get(days[index]) ?? 0);
+
+      const madeUpFor = Math.max(Math.min(cash, before - reference), 0);
+      const kept = before - madeUpFor * costs.dividendTaxRate;
+
+      carry[index] = kept / reference;
+      carried *= reference / kept;
+    }
+
     open[index] = bar.open;
     close[index] = bar.close;
-    adjustedOpen[index] = adjusted[index].open;
-    adjustedClose[index] = adjusted[index].close;
-    carry[index] =
-      index > 0 && reference !== undefined
-        ? bars[index - 1].close / reference
-        : 1;
+    factor[index] = carried;
+    adjustedOpen[index] = bar.open / carried;
+    adjustedClose[index] = bar.close / carried;
     buyPrice[index] = slipped(bar.open, true);
     sellPrice[index] = slipped(bar.open, false);
   }
@@ -886,30 +949,32 @@ function priceColumns(
     close,
     adjustedOpen,
     adjustedClose,
+    factor,
     carry,
     buyPrice,
     sellPrice,
   };
 }
 
-/** The account's value at each session's close, from `equity`, which starts at bar `first`. */
 /**
  * What `capital` in the listing would be worth at each bar from `first` on, bought at the close
- * before it, or at its own on the first bar, as `buyAndHold` reads a stretch.
+ * before it, or at its own on the first bar, as `buyAndHold` reads a stretch from the closes a
+ * holding carries over.
  */
 function holdingValues(
-  adjusted: readonly Candle[],
+  adjustedClose: Float64Array,
   capital: number,
   first: number
 ) {
-  const from = adjusted[Math.max(first - 1, 0)].close;
+  const from = adjustedClose[Math.max(first - 1, 0)];
 
   return Float64Array.from(
-    adjusted.slice(first),
-    (bar) => (capital * bar.close) / from
+    adjustedClose.subarray(first),
+    (close) => (capital * close) / from
   );
 }
 
+/** The account's value at each session's close, from `equity`, which starts at bar `first`. */
 function sessionEquity(
   days: Int32Array,
   equity: Float64Array,
@@ -997,6 +1062,13 @@ function prepare(
   const bars = runBars(symbol, candles, options);
   const capital = options.capital ?? 1_000_000;
   const costs = { ...defaultCosts(symbol), ...options.costs };
+
+  if (costs.dividendTaxRate > 0 && !options.dividends) {
+    throw new Error(
+      `A backtest of ${symbolLabel(symbol)} that withholds tax from its dividends needs its distributions`
+    );
+  }
+
   const adjusted = adjustedCandles(bars);
   const factors = adjustmentFactors(bars);
   const days = candleDays(symbol.market, bars);
@@ -1007,8 +1079,7 @@ function prepare(
   const splitAt = options.split ? splitIndex(days, options.split) : -1;
 
   const kernelBars: KernelBars = {
-    ...priceColumns(symbol, bars, adjusted, costs.slippageTicks),
-    factor: Float64Array.from(factors),
+    ...priceColumns(symbol, bars, days, costs, options.dividends ?? []),
     buyLocked: locks.up,
     sellLocked: locks.down,
     day: days,
@@ -1030,7 +1101,6 @@ function prepare(
   return {
     interval,
     bars,
-    adjusted,
     days,
     capital,
     costs,
@@ -1063,11 +1133,11 @@ function prepare(
  * reference, a shorter one that traded at one price, its session's limit. Each stretch's timing is
  * tested against `BACKTEST_PERMUTATIONS` orderings of its bars.
  *
- * Indicators, stops and buying and holding read prices adjusted from the bars' references, so a
- * split or what went ex reads as no move, each bar's on its own terms so no later one changes it,
- * while orders fill at prices as traded. A holding carries over a split or what went ex at the
- * session's reference, as though what went ex bought more shares then, which is what those prices
- * assume.
+ * Indicators read prices adjusted from the bars' references, so a split or what went ex reads as no
+ * move, each bar's on its own terms so no later one changes it, while orders fill at prices as
+ * traded. A holding carries over a split or what went ex at the session's reference, as though what
+ * went ex bought more shares then, less the tax the costs withhold from its cash; stops and buying
+ * and holding read prices carried over the same way.
  */
 export async function backtest(
   kernel: BacktestKernel,
@@ -1099,7 +1169,7 @@ export async function backtest(
     equity: sessionEquity(days, run.equity, 0),
     holding: sessionEquity(
       days,
-      holdingValues(prepared.adjusted, prepared.capital, 0),
+      holdingValues(prepared.kernelBars.adjustedClose, prepared.capital, 0),
       0
     ),
     ...prepared.stretches(run.stretches),
@@ -1200,7 +1270,7 @@ export async function walkForward(
     equity: sessionEquity(days, run.equity, first),
     holding: sessionEquity(
       days,
-      holdingValues(prepared.adjusted, prepared.capital, first),
+      holdingValues(prepared.kernelBars.adjustedClose, prepared.capital, first),
       first
     ),
   };
@@ -1419,9 +1489,14 @@ export function ruleSignal(
   strategy: RuleStrategy,
   options: Pick<BacktestOptions, "interval" | "daily" | "lines"> = {}
 ): RuleSignal {
-  const prepared = prepare(symbol, candles, [strategy], options, [
-    options.lines,
-  ]);
+  // Rules read the bars adjusted from their references, whatever a holding would be carried over by.
+  const prepared = prepare(
+    symbol,
+    candles,
+    [strategy],
+    { ...options, dividends: [] },
+    [options.lines]
+  );
 
   const { lines } = prepared.kernelBars;
   const [ruled] = prepared.strategies;
