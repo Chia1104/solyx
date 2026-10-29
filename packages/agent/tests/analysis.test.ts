@@ -567,15 +567,18 @@ test("the tool declares the sources' functions under their names, on types writt
   expect(description).toContain("declare const fundamentals: {");
 });
 
-test("a script reads daily bars from further back and adds back the cash that went ex", async () => {
+test("a script reads daily bars from further back and carries them over what split or went ex", async () => {
   const { results, candles, candlesSince } = await analyze(`
     const tsmc = { market: "${Market.TW}", symbol: "2330" };
     const bars = await tools.candles({ symbol: tsmc, interval: "${Interval.OneDay}", since: "2018-01-02" });
-    const cash = await fundamentals.cashGoneEx(
-      [{ time: "2026-06-09" }, { time: "2026-06-10" }, { time: "2026-06-11" }],
-      [{ period: "Q1", announced: null, cash: 6, stock: 0, cashExDate: "2026-06-11", cashPaidOn: null, stockExDate: null }]
-    );
-    return { bars: bars.length, cash };
+    const bar = (time, close, reference) => ({ time, epoch: 0, open: close, high: close, low: close, close, volume: 1, reference });
+    const adjustment = await indicators.adjustment([
+      bar("2026-06-09", 100),
+      // Split four for one, then gone ex of 5.
+      bar("2026-06-10", 25, 25),
+      bar("2026-06-11", 20, 20),
+    ]);
+    return { bars: bars.length, adjustment };
   `);
 
   expect(candlesSince).toHaveBeenCalledWith(
@@ -587,7 +590,7 @@ test("a script reads daily bars from further back and adds back the cash that we
   expect(results).toEqual([
     {
       status: ToolCallStatus.Ok,
-      output: 'Result: {"bars":30,"cash":[0,0,6]}',
+      output: 'Result: {"bars":30,"adjustment":[1,0.25,0.2]}',
     },
   ]);
 });

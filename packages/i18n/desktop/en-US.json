@@ -1191,7 +1191,7 @@
       "held": "Held",
       "history": "history {{share}}",
       "closed": "Closed at {{close}} on {{date}}",
-      "distributed": "judged with {{cash}} gone ex added back",
+      "adjusted": "{{close}} adjusted for splits and payouts",
       "evidence": "Its {{count, number}} facts as a decisions model read them: good news {{good}} · mixed {{mixed}} · bad news {{bad}}",
       "plan-result": {
         "not-entered": "Never entered",

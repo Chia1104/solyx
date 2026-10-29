@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { candleDate } from "../src/candles.ts";
 import type { Candle } from "../src/candles.ts";
 import {
   ForecastDirection,
@@ -23,8 +22,6 @@ import type {
   ForecastContext,
   ForecastDraft,
 } from "../src/forecast.ts";
-import { cashGoneExBy } from "../src/fundamentals.ts";
-import type { Dividend } from "../src/fundamentals.ts";
 import { Market } from "../src/market.ts";
 import { ReportStance } from "../src/report.ts";
 import { Stance } from "../src/sentiment.ts";
@@ -105,11 +102,15 @@ function forecast(patch: Partial<Forecast> = {}): Forecast {
   };
 }
 
-function bar(
-  date: string,
-  { low, high, close }: { low: number; high: number; close: number }
-): Candle {
-  return {
+interface Prices {
+  low: number;
+  high: number;
+  close: number;
+  reference?: number;
+}
+
+function bar(date: string, { low, high, close, reference }: Prices): Candle {
+  const candle: Candle = {
     time: Date.parse(`${date}T00:00:00+08:00`) / 1000,
     open: close,
     high,
@@ -117,25 +118,31 @@ function bar(
     close,
     volume: 1000,
   };
+
+  if (reference !== undefined) candle.reference = reference;
+
+  return candle;
 }
 
-/** The anchor's bar and then one bar per session. */
-const exDividend = (cashExDate: string, cash: number): Dividend => ({
-  period: "115年",
-  announced: null,
-  cash,
-  stock: 0,
-  cashExDate,
-  cashPaidOn: null,
-  stockExDate: null,
-});
+/**
+ * The anchor's bar and then one bar per session, each moving from the close before, as a source's
+ * reference reads on a day nothing went ex, unless it says what it moved from.
+ */
+function daily(...sessions: Prices[]): Candle[] {
+  const anchor = bar(ANCHOR.date, {
+    low: 990,
+    high: 1005,
+    close: ANCHOR.price,
+  });
 
-function daily(
-  ...sessions: { low: number; high: number; close: number }[]
-): Candle[] {
   return [
-    bar(ANCHOR.date, { low: 990, high: 1005, close: ANCHOR.price }),
-    ...sessions.map((prices, index) => bar(SESSIONS[index], prices)),
+    anchor,
+    ...sessions.map((prices, index) =>
+      bar(SESSIONS[index], {
+        reference: (sessions[index - 1] ?? anchor).close,
+        ...prices,
+      })
+    ),
   ];
 }
 
@@ -455,30 +462,88 @@ describe("judgeForecast", () => {
     expect(outcome?.brier).toBeCloseTo(0.2 ** 2 + 0.5 ** 2 + 0.7 ** 2);
   });
 
-  test("cash that went ex inside the horizon is added back before the close and the plan are judged", () => {
-    const bars = daily(
-      { low: 995, high: 1010, close: 1005 },
-      // 30 went ex on the second session: the bars fall by it with nothing lost.
-      { low: 965, high: 985, close: 980 },
-      { low: 960, high: 985, close: 975 }
+  test("what went ex inside the horizon is made up for before the close and the plan are judged", () => {
+    const first = { low: 995, high: 1010, close: 1005 };
+    const second = { low: 965, high: 985, close: 980 };
+    const third = { low: 960, high: 985, close: 975 };
+
+    const raw = judgeForecast(
+      forecast(),
+      daily(first, second, third),
+      AFTER_HORIZON
     );
 
-    const raw = judgeForecast(forecast(), bars, AFTER_HORIZON);
-
     // As traded the low of 965 is through the stop at 980, and the close in the bear's band.
-    expect(raw).toMatchObject({ close: 975, distributed: 0, scenario: 0 });
+    expect(raw).toMatchObject({ close: 975, adjustedClose: 975, scenario: 0 });
     expect(raw?.plan?.result).toBe(PlanResult.HitStop);
 
-    const judged = judgeForecast(forecast(), bars, AFTER_HORIZON, [
-      exDividend("2026-10-01", 30),
-      // Gone ex before the anchor and after the horizon, which change nothing.
-      exDividend("2026-09-29", 10),
-      exDividend("2026-10-05", 10),
-    ]);
+    // 30 went ex on the second session, so its reference is the close before less that.
+    const judged = judgeForecast(
+      forecast(),
+      daily(first, { ...second, reference: 975 }, third),
+      AFTER_HORIZON
+    );
 
-    // With 30 added back the close reads 1005, in the base band, and no low comes near the stop.
-    expect(judged).toMatchObject({ close: 975, distributed: 30, scenario: 1 });
+    // On the anchor's terms the close reads 1005, in the base band, and no low comes near the stop.
+    expect(judged).toMatchObject({ close: 975, scenario: 1 });
+    expect(judged?.adjustedClose).toBeCloseTo(1005);
     expect(judged?.plan?.result).toBe(PlanResult.Expired);
+  });
+
+  test.each([
+    ["a split four for one", 1 / 4],
+    ["a tenth of a share distributed on each", 1 / 1.1],
+    ["a capital reduction by half", 2],
+  ])("%s inside the horizon reads as no move", (_event, ratio) => {
+    const terms = (prices: Prices) => ({
+      low: prices.low * ratio,
+      high: prices.high * ratio,
+      close: prices.close * ratio,
+    });
+
+    const outcome = judgeForecast(
+      forecast(),
+      daily(
+        { low: 995, high: 1010, close: 1005 },
+        {
+          ...terms({ low: 1000, high: 1020, close: 1015 }),
+          reference: 1005 * ratio,
+        },
+        terms({ low: 1010, high: 1030, close: 1020 })
+      ),
+      AFTER_HORIZON
+    );
+
+    // As on bars that never changed terms: 1020 in the base band, and the plan neither stopped nor paid.
+    expect(outcome).toMatchObject({ close: 1020 * ratio, scenario: 1 });
+    expect(outcome?.adjustedClose).toBeCloseTo(1020);
+    expect(outcome?.plan).toMatchObject({
+      result: PlanResult.Expired,
+      entered: 1,
+      exited: 3,
+    });
+    expect(outcome?.plan?.r).toBeCloseTo(1);
+  });
+
+  test("waits for the horizon's session to take its reference, unless a later session came without one", () => {
+    const bars = daily(
+      { low: 995, high: 1010, close: 1005 },
+      { low: 1000, high: 1020, close: 1015 },
+      { low: 1010, high: 1030, close: 1020 }
+    );
+
+    // Today's bar is built from the session's own until its source serves it as history.
+    const { reference: _unset, ...forming } = bars[3];
+    const traded = [...bars.slice(0, 3), forming];
+
+    expect(judgeForecast(forecast(), traded, AFTER_HORIZON)).toBe(null);
+    expect(
+      judgeForecast(
+        forecast(),
+        [...traded, bar("2026-10-05", { low: 1015, high: 1025, close: 1020 })],
+        AFTER_HORIZON
+      )
+    ).toMatchObject({ close: 1020, adjustedClose: 1020, scenario: 1 });
   });
 
   test("a plan that enters and then reaches its target pays its reward in R", () => {
@@ -658,7 +723,7 @@ test("forecastRecord sums up what settled and how well the probabilities held", 
       outcome: {
         date: "2026-10-02",
         close: 1000,
-        distributed: 0,
+        adjustedClose: 1000,
         scenario,
         brier: scenario === 1 ? 0.38 : 0.78,
         plan:
@@ -729,43 +794,24 @@ const closes = (prices: number[]) =>
 
 describe("base rates", () => {
   test("a horizon's moves are every close over the close that many sessions before", () => {
-    expect(horizonMoves(Market.TW, closes([100, 110, 121, 100]), 2)).toEqual([
+    expect(horizonMoves(closes([100, 110, 121, 100]), 2)).toEqual([
       1.21,
       100 / 110,
     ]);
-    expect(horizonMoves(Market.TW, closes([100, 110]), 2)).toEqual([]);
+    expect(horizonMoves(closes([100, 110]), 2)).toEqual([]);
   });
 
-  test("cash that went ex inside a move counts with its later close", () => {
-    // 5 went ex on the third bar's day: the moves that span it carry it, the one after does not.
-    const moves = horizonMoves(Market.TW, closes([100, 100, 95, 95, 95]), 2, [
-      exDividend("2026-01-03", 5),
-    ]);
-
-    expect(moves).toEqual([1, 1, 1]);
-  });
-
-  test("a move with its cash added back is the cash gone ex by its later bar less by its earlier", () => {
-    const bars = closes([100, 100, 95, 95, 90]);
-
-    const dividends = [
-      exDividend("2026-01-03", 5),
-      exDividend("2026-01-05", 5),
-    ];
-
-    const cash = cashGoneExBy(
-      bars.map((each) => candleDate(Market.TW, each.time)),
-      dividends
+  test("a move that spans a split or what went ex counts it as no move, from the bars' references", () => {
+    // The third bar split two for one and the fifth went ex of 2, each moving nothing from its reference.
+    const bars = closes([100, 100, 50, 50, 48]).map((each, index) =>
+      index === 2 || index === 4 ? { ...each, reference: each.close } : each
     );
 
-    expect(horizonMoves(Market.TW, bars, 2, dividends)).toEqual(
-      bars
-        .slice(2)
-        .map(
-          (later, index) =>
-            (later.close + cash[index + 2] - cash[index]) / bars[index].close
-        )
-    );
+    const moves = horizonMoves(bars, 2);
+
+    expect(moves).toHaveLength(3);
+
+    for (const move of moves) expect(move).toBeCloseTo(1);
   });
 
   test("bands between edges hold every price once, the lowest and highest left open", () => {
@@ -825,7 +871,7 @@ test("forecastRecord measures settled forecasts against the base rates of their 
       outcome: {
         date: "2026-10-02",
         close: 1000,
-        distributed: 0,
+        adjustedClose: 1000,
         scenario,
         brier,
         plan: null,
@@ -855,7 +901,7 @@ test("the record counts the scenarios a vote carried against what history expect
   const settled = (scenario: number) => ({
     date: SESSIONS[2],
     close: 1000,
-    distributed: 0,
+    adjustedClose: 1000,
     scenario,
     brier: 0.5,
     plan: null,
@@ -948,7 +994,7 @@ test("the record counts the side the facts read towards against what history exp
   const settled = (scenario: number) => ({
     date: SESSIONS[2],
     close: 1000,
-    distributed: 0,
+    adjustedClose: 1000,
     scenario,
     brier: 0.5,
     plan: null,

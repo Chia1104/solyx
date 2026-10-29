@@ -44,7 +44,7 @@ test("windows are told as each exchange's day turns and its regular session open
     data,
     {
       marketData: { candles: async () => [] },
-      fundamentals: { statements: async () => [], dividends: async () => [] },
+      fundamentals: { statements: async () => [] },
       auditor: async () => undefined,
       reader: async () => undefined,
       news: { list: () => [] },

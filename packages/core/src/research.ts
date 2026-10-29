@@ -28,7 +28,7 @@ import type {
   ForecastRecord,
   ForecastViolation,
 } from "./forecast.ts";
-import type { Dividend, Fundamentals } from "./fundamentals.ts";
+import type { Fundamentals } from "./fundamentals.ts";
 import type { MarketData } from "./market-data.ts";
 import { BENCHMARK, exchangeDate, symbolKey } from "./market.ts";
 import type { SymbolRef } from "./market.ts";
@@ -148,7 +148,7 @@ const checkKey = (falsifier: string, source: string, item: string) =>
 export interface ResearchDeskOptions {
   store: ResearchStore;
   marketData: Pick<MarketData, "candles">;
-  fundamentals: Pick<Fundamentals, "statements" | "dividends">;
+  fundamentals: Pick<Fundamentals, "statements">;
   /** Reads each claim against its quote as it is kept; none until the user sets up a decisions model. */
   auditor?: () => Promise<ClaimAuditor | undefined>;
   /** Reads how each fact a forecast rests on bears on the price; none until the user sets up a decisions model. */
@@ -364,11 +364,10 @@ export class ResearchDesk {
     };
 
     const newestQuarter = await this.#newestQuarter(instrument);
-    const dividends = await this.#dividends(instrument);
     const support = await this.#audit(draft.claims);
 
     const rates = baseRates(
-      horizonMoves(instrument.market, daily, draft.horizon, dividends),
+      horizonMoves(daily, draft.horizon),
       anchor.price,
       draft.scenarios
     );
@@ -452,12 +451,7 @@ export class ResearchDesk {
 
     const newest = daily[daily.length - 1];
 
-    const moves = horizonMoves(
-      symbol.market,
-      daily,
-      horizon,
-      await this.#dividends(symbol)
-    );
+    const moves = horizonMoves(daily, horizon);
 
     return {
       anchor: {
@@ -882,44 +876,26 @@ export class ResearchDesk {
     }
   }
 
-  /**
-   * The listing's distributions for measuring its moves; none while they cannot be read, since a
-   * base rate that leaves a dividend out is still worth more than no forecast.
-   */
-  async #dividends(symbol: SymbolRef): Promise<Dividend[]> {
-    try {
-      return await this.#options.fundamentals.dividends(symbol);
-    } catch {
-      return [];
-    }
-  }
-
   /** Judges a listing's forecasts whose horizon has passed and keeps each outcome. */
   async #settle(symbol: SymbolRef, forecasts: Forecast[]): Promise<Forecast[]> {
-    const { store, marketData, fundamentals, now = Date.now } = this.#options;
+    const { store, marketData, now = Date.now } = this.#options;
 
     if (forecasts.every((forecast) => forecast.outcome)) return forecasts;
 
     let daily: Candle[];
-    let dividends: Dividend[];
 
     try {
-      [daily, dividends] = await Promise.all([
-        marketData.candles(symbol, Interval.OneDay),
-        fundamentals.dividends(symbol),
-      ]);
+      daily = await marketData.candles(symbol, Interval.OneDay);
     } catch {
-      // Bars or distributions can be out of reach, as while no source covers the market; what is
-      // kept still reads, and a later read settles it, since an outcome is kept once and one
-      // judged without a dividend that went ex could not be put right.
+      // Bars can be out of reach, as while no source covers the market; what is kept still reads,
+      // and a later read settles it.
       return forecasts;
     }
 
     const at = new Date(now());
 
     const judged = forecasts.map((forecast) => {
-      const outcome =
-        forecast.outcome ?? judgeForecast(forecast, daily, at, dividends);
+      const outcome = forecast.outcome ?? judgeForecast(forecast, daily, at);
 
       if (outcome && !forecast.outcome) store.settle(forecast.id, outcome);
 

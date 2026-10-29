@@ -52,8 +52,8 @@ const AT_ANCHOR = Date.parse("2026-09-29T14:00:00+08:00");
 
 const AFTER_HORIZON = Date.parse("2026-10-01T14:00:00+08:00");
 
-function bar(date: string, close: number): Candle {
-  return {
+function bar(date: string, close: number, reference?: number): Candle {
+  const candle: Candle = {
     time: Date.parse(`${date}T00:00:00+08:00`) / 1000,
     open: close,
     high: close + 5,
@@ -61,24 +61,34 @@ function bar(date: string, close: number): Candle {
     close,
     volume: 1000,
   };
+
+  if (reference !== undefined) candle.reference = reference;
+
+  return candle;
 }
 
 const ANCHOR_BAR = bar("2026-09-29", 1000);
 
-const LATER_BARS = [bar("2026-09-30", 1010), bar("2026-10-01", 1045)];
+// Each counting from the close before, as a source's reference does on a day nothing went ex.
+const LATER_BARS = [
+  bar("2026-09-30", 1010, 1000),
+  bar("2026-10-01", 1045, 1010),
+];
 
 /**
  * Sixty-four daily bars that end on the anchor: the close swings between 1100 and 1000 every two
- * sessions, so of its 62 moves over two sessions 32 fall and 30 rise.
+ * sessions, so of its 62 moves over two sessions 32 fall and 30 rise. The 7 that went ex on
+ * 2026-09-16, a fall's second session, comes off the close before in that bar's reference.
  */
-const HISTORY = Array.from({ length: 64 }, (_, index) =>
-  bar(
-    Temporal.PlainDate.from("2026-09-29")
-      .subtract({ days: 63 - index })
-      .toString(),
-    index % 4 < 2 ? 1100 : 1000
-  )
-);
+const HISTORY = Array.from({ length: 64 }, (_, index) => {
+  const date = Temporal.PlainDate.from("2026-09-29")
+    .subtract({ days: 63 - index })
+    .toString();
+
+  return date === "2026-09-16"
+    ? bar(date, 1000, 1093)
+    : bar(date, index % 4 < 2 ? 1100 : 1000);
+});
 
 function quarter(periodEnd: string, revenue: number, eps: number) {
   return {
@@ -624,8 +634,8 @@ test("base rates tell how the listing's own moves spread over a horizon and land
 
   expect(text.split("\n")).toEqual([
     "TW 2330 over 2 sessions from 2026-09-29 at 1000: 62 moves of that length in its daily bars since 2026-07-28",
-    // The 7 that went ex on 2026-09-16 counts with the two falls that span it, the median among them.
-    "Moves, each with the close it would make from 1000: 10th percentile -9.1% (909.09), 25th percentile -9.1% (909.09), 50th percentile -8.5% (915.45), 75th percentile +10.0% (1100), 90th percentile +10.0% (1100)",
+    // The 7 that went ex on 2026-09-16 makes up part of the two falls that span it, the median among them.
+    "Moves, each with the close it would make from 1000: 10th percentile -9.1% (909.09), 25th percentile -9.1% (909.09), 50th percentile -8.5% (914.91), 75th percentile +10.0% (1100), 90th percentile +10.0% (1100)",
     "Base rates: below 1000 52%; 1000 and above 48%",
   ]);
 
@@ -766,31 +776,20 @@ test("a forecast's claims are held to what the conversation read too", async () 
   );
 });
 
-test("an outcome says what went ex inside the horizon and was added back", async () => {
-  const { run, clock, bars, filed } = setup();
-
-  filed.dividends = [
-    {
-      period: "115年第2季",
-      announced: "2026-09-01",
-      cash: 5,
-      stock: 0,
-      cashExDate: "2026-10-01",
-      cashPaidOn: null,
-      stockExDate: null,
-    },
-  ];
+test("an outcome says what it was judged at once what went ex inside the horizon was made up for", async () => {
+  const { run, clock, bars } = setup();
 
   await run(AgentToolName.ReviseReport, REPORT);
   await run(AgentToolName.SubmitForecast, FORECAST);
 
   clock.now = AFTER_HORIZON;
-  bars.daily = [ANCHOR_BAR, ...LATER_BARS];
+  // 5 went ex on the horizon's session.
+  bars.daily = [ANCHOR_BAR, LATER_BARS[0], bar("2026-10-01", 1045, 1005)];
 
   expect(
     (await run(AgentToolName.GetResearch, { symbol: TSMC })).text
   ).toContain(
-    'outcome: closed 1045 on 2026-10-01, judged with the 5 that went ex added back, in "Up", Brier 0.32'
+    'outcome: closed 1045 on 2026-10-01, judged at 1050.2 with what went ex or split after the anchor made up for, in "Up", Brier 0.32'
   );
 });
 

@@ -591,29 +591,6 @@ export function trailingCash(
 }
 
 /**
- * For each of `dates`, exchange-local days in ascending order, the cash a share that went ex after
- * the first of them through it. A return from one day to a later one adds the difference between
- * the two to the later close, which is how a forecast is judged. Stock distributed and splits are
- * not made up for.
- */
-export function cashGoneExBy(
-  dates: readonly string[],
-  dividends: readonly Dividend[]
-): number[] {
-  const [first] = dates;
-
-  return dates.map((date) =>
-    sumBy(
-      dividends.filter(
-        ({ cashExDate }) =>
-          cashExDate !== null && cashExDate > first && cashExDate <= date
-      ),
-      ({ cash }) => cash
-    )
-  );
-}
-
-/**
  * Each bar's close over the trailing EPS that was public on its day, so a past multiple never
  * leans on results the market had not seen. Bars are left out before four quarters were public
  * and while the trailing EPS is not a profit.
