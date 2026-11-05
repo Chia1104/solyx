@@ -179,7 +179,7 @@ const manifestSchema = z.object({ version: z.string() });
  * oldest first. Fubon offers only its newest for download, which the Fubon SDK workflow checks
  * each weekday and adds here once it passes.
  */
-export const FUBON_SDK_VERSIONS = ["2.4.0"];
+export const FUBON_SDK_VERSIONS = ["2.4.0", "2.5.0"];
 
 /** The folder the user chose, or the `package` folder inside it, where it holds the SDK. */
 const sdkFolder = (dir: string) =>
