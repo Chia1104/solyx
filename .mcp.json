@@ -1,9 +1,13 @@
 {
   "mcpServers": {
     "fallow": {
-      "type": "stdio",
+      "args": [],
       "command": "fallow-mcp",
-      "args": []
+      "type": "stdio"
+    },
+    "obmem": {
+      "args": ["serve"],
+      "command": "obmem"
     }
   }
 }
