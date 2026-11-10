@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -14,7 +14,7 @@ approved_by: auto-approve
 
 # Fallow 3.35.0 set up 2026-10-24 as PR #299 (chore/fallow-setup); user's picks, no agent hook after Strix's finding, global fallow-mcp, upkeep steps
 
-Set up 2026-10-24 as PR #299 (branch `chore/fallow-setup`), open; four commits: setup, a hook hardening, the hook's removal, then the enum/CRAP tuning.
+Set up 2026-10-24 as PR #299 (branch `chore/fallow-setup`), merged since; four commits: setup, a hook hardening, the hook's removal, then the enum/CRAP tuning.
 
 - User's picks: warn-default cleanup rules stay advisory; private-type-leak off; keep the enum convention, so `ignoreExportsUsedInFile: {type: true}` (an enum's exported type is often used only in its file); CRAP off (`health.maxCrap: 0`, coverage is only estimated), cyclomatic 20 / cognitive 15 still gate; CI `audit` job on pull requests blocks on a `fail` verdict (new-only gate, `FALLOW_AUDIT_BASE=origin/<base_ref>`, GitHub annotations).
 - No agent commit hook: Strix (strix-security bot) flagged that a committed PreToolUse hook runs repo-controlled code on every agent shell call; pinning the handler to `$CLAUDE_PROJECT_DIR` did not answer it, so hooks, scripts and `.claude/settings.json` were removed. CI is the gate; agents run `fallow audit` themselves.

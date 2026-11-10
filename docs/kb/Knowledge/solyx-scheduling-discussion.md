@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -13,6 +13,8 @@ approved_by: auto-approve
 ---
 
 # User wants to rethink how solyx organizes scheduled work, modelled on t3code's scheduled tasks; paused 2026-10-08 before any design
+
+Superseded: see [[solyx-scheduled-work]] for what was built (the shared clock, `keepFresh` kept answers, and scheduled agent runs as interval, fixed-time and on-change tasks).
 
 On 2026-10-08 the user asked how solyx should organize its scheduled work, using `/Users/chia1104/Documents/GitHub/t3code`'s scheduled tasks (interval / fixed_time / webhook, runs bound to a thread) as the reference. They stopped the investigation before the t3code side was mapped and said they will discuss it later.
 

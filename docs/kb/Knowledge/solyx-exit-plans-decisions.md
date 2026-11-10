@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -20,11 +20,11 @@ On 2026-10-19 the user approved all three follow-ups from the live trading discu
 2. CI for Fubon SDK versions: download the public zip and `test_environment.zip` at runtime; type check, load under Electron, test-env assertions, daily new-version detection; the app warns about untested versions.
 3. Exit plans (stop-loss / take-profit). The user's picks:
    - Fubon runs them as broker-side condition orders (`singleCondition` / `TpslWrapper` / `trailProfit`); paper simulates them in the app.
-   - Every exit plan the agent proposes waits for the user's confirmation. A mandate attaching exits comes later, not now.
+   - Every exit plan the agent proposes waits for the user's confirmation. A mandate attaching exits comes later, not now (Linear CHI-42).
 
 **Why:** a stop must fire while the app is closed, and invariant 1 holds when the confirmed thing is the condition order itself.
 
-**How to apply:** stack the work on #236 (`feat/fubon-account-pick`). Verify that Fubon's test environment accepts condition orders before fixing the design. `ConditionOrder` has no `userDef`, so reconcile those orders by matching their content. Related: [[solyx-live-trading-plan]].
+**How to apply:** the work was stacked on #236 (`feat/fubon-account-pick`) and is merged since. Fubon's test environment was checked for condition orders before the design was fixed (the probe below). `ConditionOrder` has no `userDef`, so reconcile those orders by matching their content. Related: [[solyx-live-trading-plan]].
 
 Probed in Fubon's test environment on 2026-10-19 at about 16:45, using the raw SDK (`/tmp/fubon-probe/cond.cjs`):
 
@@ -48,7 +48,7 @@ Shipped so far:
 - Item 1 became PR #238 (`feat/broker-settings`, Brokers section).
 - Item 2 became PR #239 (`feat/fubon-sdk-ci`), whose `fubon-sdk-check.ts` passed on GitHub's runners against the test environment.
 
-Built 2026-10-19, stacked on #236:
+Built 2026-10-19, stacked on #236 (all merged since):
 
 - #238: Brokers section.
 - #239: Fubon SDK workflow. Its PR runs passed on GitHub's runners, test environment included.
@@ -56,7 +56,7 @@ Built 2026-10-19, stacked on #236:
 - #241: Fubon condition orders.
 - #242: the agent's `propose_exit` and the exit-plan skill.
 
-Merge order after #236: #238 → #239 → #240 → #241 → #242.
+Merge order after #236 was #238 → #239 → #240 → #241 → #242.
 
 Design choices that were mine, not the user's:
 
@@ -68,7 +68,7 @@ Design choices that were mine, not the user's:
 - Exits skip the MAGI vote.
 - The paper account checks prices only when asked: by the exit-watch pass each minute of a regular session, and at startup.
 
-Not seen yet:
+Not seen yet (Linear CHI-46):
 
 - A Fubon leg actually triggering.
 - Whether a real account needs Fubon's 條件單 agreement.
@@ -84,6 +84,6 @@ Not seen yet:
   - `onExitSold` triggers `desk.brokerChanged`.
   - The once-a-minute check stays as a backstop, and only for listings the stream does not cover.
 - **Smoke test** with a faked Fugle WebSocket in the wrapper's `main.mjs`, overriding `globalThis.WebSocket` with auth, subscribe, snapshot and `data` messages. It worked.
-- **Merge order:** … #242 → #243.
+- **Merge order:** … #242 → #243; all merged since.
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-exit-plans-decisions.md`, type `project`).

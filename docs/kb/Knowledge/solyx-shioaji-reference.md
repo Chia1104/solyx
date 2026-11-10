@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -14,15 +14,15 @@ approved_by: auto-approve
 
 # 2026-10-18 study of Sinopac's shioaji-pro-app (AGPL, local clone) for ideas Solyx could borrow; which ones fit and which conflict with the invariants
 
-On 2026-10-18 the user had me study `/Users/chia1104/Documents/GitHub/shioaji-pro-app` (Shioaji Pro, AGPL-3.0, so concepts only, never code) for ideas. Nothing was built yet; the user had not picked any.
+On 2026-10-18 the user had me study `/Users/chia1104/Documents/GitHub/shioaji-pro-app` (Shioaji Pro, AGPL-3.0, so concepts only, never code) for ideas. Nothing was built yet that day and the user had not picked any; they approved the roadmap later the same day and it was built and merged as #215–#226 (see [[solyx-shioaji-roadmap-decisions]]).
 
 Ideas that fit Solyx, as I ranked them:
 
-- Order outcome split: "refused before dispatch" vs "outcome unknown" (timeout/5xx/abort), unknown → one authoritative broker read, never resend. Solyx's `SubmissionFailureCode.Error` lumps both.
-- Price premise at confirm: proposal shows live price vs proposed; stale or moved proposals need re-proposing (their agent approvals require an unchanged quote within 15 s; triggers hold for "restore confirmation" and need a "re-cross"). Solyx's desk still has no quote feed.
-- Kill switch: manual lock + daily loss cap beside `maxOrderNotional`; fail closed while P&L is unknown (their bug: `dailyPnlKnown` never checked).
-- A pure backtest core in `@solyx/core` that `run_analysis` scripts call: signal at close i fills at open i+1, look-ahead raises, TW fee/tax/slippage, in-sample vs out-of-sample, immutable revisions + run manifest.
-- Trade review: P&L/win rate/payoff ratio grouped by `ProposalBasis` stance.
+- Order outcome split: "refused before dispatch" vs "outcome unknown" (timeout/5xx/abort), unknown → one authoritative broker read, never resend. Solyx's `SubmissionFailureCode.Error` lumps both. (Built: #216.)
+- Price premise at confirm: proposal shows live price vs proposed; stale or moved proposals need re-proposing (their agent approvals require an unchanged quote within 15 s; triggers hold for "restore confirmation" and need a "re-cross"). Solyx's desk still has no quote feed. (Built: #221, the proposal's price premise checked at confirm.)
+- Kill switch: manual lock + daily loss cap beside `maxOrderNotional`; fail closed while P&L is unknown (their bug: `dailyPnlKnown` never checked). (Built: #217 lock, #218 daily loss cap.)
+- A pure backtest core in `@solyx/core` that `run_analysis` scripts call: signal at close i fills at open i+1, look-ahead raises, TW fee/tax/slippage, in-sample vs out-of-sample, immutable revisions + run manifest. (Built: #226.)
+- Trade review: P&L/win rate/payoff ratio grouped by `ProposalBasis` stance. (Built: #219.)
 - Intraday signals (limit approach, rapid move, volume burst) as change kinds for task wakeups — Shioaji's server computes these; Solyx would need its own stream.
 - Workflow observation: a daily read-only run turns repeated steps into skills, never overwriting a user-edited one.
 
@@ -30,7 +30,7 @@ Conflicts: their controlled-auto trading mode and client-side brackets/stop trig
 
 `Sinotrade/shioaji-data` (public repo created 2026-10-13, rebuilt every trading day by a private pipeline): the official half (prices, market cap, monthly revenue, IFRS statements) duplicates what Solyx already reads from primary sources. The useful half is the AI-curated research: ~5,100 relation edges (customer/supplier/competitor/partner/subsidiary, each with source URL and date but no quote text), 37 chains/themes with upstream/mid/downstream stages, a four-level industry taxonomy finer than the exchange's, and revenue segments; it covers 813 of 1,989 companies. Its license is "待定" (to be decided), so it is blocked until Sinotrade sets one. If it is ever used, treat edges as leads the agent quotes from the source, not as claims.
 
-Consolidated with [[solyx-twse-openapi-gaps]] on 2026-10-18. `BrokerAdapter` only has `getAccount` and `placeOrder`, so reading the broker's orders and fills is a shared prerequisite for reconciling unknown outcomes, a daily loss cap and the trade review. Proposed order: price limits into the desk, then the failure split and a manual lock, then the broker's orders/fills, then the restriction kinds and market cap; the backtest core and intraday signals come last.
+Consolidated with [[solyx-twse-openapi-gaps]] on 2026-10-18. `BrokerAdapter` only has `getAccount` and `placeOrder` (true then; fills came with #218, orders and cancel with #230–#232), so reading the broker's orders and fills is a shared prerequisite for reconciling unknown outcomes, a daily loss cap and the trade review. Proposed order: price limits into the desk, then the failure split and a manual lock, then the broker's orders/fills, then the restriction kinds and market cap; the backtest core and intraday signals come last.
 
 Related: [[solyx-workflow-review]], [[solyx-research-forecast-design]], [[solyx-deepen-modules-refactor]]
 

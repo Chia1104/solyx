@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -22,7 +22,7 @@ Facts behind it:
 - Ollama sizes context by GPU memory (<23 GiB → 4096); `/v1` cannot set `num_ctx`; overflow silently drops old messages. `/api/chat` takes `options.num_ctx`, `truncate: false`, `shift: false`; `/api/tags` carries `capabilities` and `details.context_length`.
 - pi-durable compacts at `contextWindow − 16384`, so the window is 64K (capped at the model's) and models under 48K are not listed — Ollama's `qwen3` family (40K) is excluded; thinking maps to on/off only.
 
-Opened as PR #203 (`feat/agent-ollama` → develop): `packages/agent/src/ollama.ts` (pi-ai `createProvider`, dynamic `fetchModels`), catalog `restore`/`refresh(providers)`/`servedByUser`/`listingFailure`, `fileModelsStore` → `userData/agent-models.json`, asked only once switched on. Smoke run against a fake `/api/chat` showed a full tool round trip. Not yet run against a real model (would need pulling one, e.g. `llama3.2:3b`; ask first).
+Built as PR #203 (`feat/agent-ollama` → develop, merged): `packages/agent/src/ollama.ts` (pi-ai `createProvider`, dynamic `fetchModels`), catalog `restore`/`refresh(providers)`/`servedByUser`/`listingFailure`, `fileModelsStore` → `userData/agent-models.json`, asked only once switched on. Smoke run against a fake `/api/chat` showed a full tool round trip. Not yet run against a real model (would need pulling one, e.g. `llama3.2:3b`; ask first) (Linear CHI-27).
 
 Related: [[solyx-local-embedding-model]], [[solyx-broad-provider-support]].
 

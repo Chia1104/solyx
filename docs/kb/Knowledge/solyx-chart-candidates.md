@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -14,7 +14,7 @@ approved_by: auto-approve
 
 # 2026-10-20 inventory of Solyx data shown as text/tables that suits charts; which data is fetched but never rendered; what needs new storage
 
-On 2026-10-20 the user asked which displays in Solyx could use more charts. A renderer inventory found the following; only suggestions, nothing has been built yet.
+On 2026-10-20 the user asked which displays in Solyx could use more charts. A renderer inventory found the following; only suggestions at the time; the ten candidates the user approved were built since (Progress below), so the lists here describe 2026-10-20.
 
 **Fetched but never drawn:**
 
@@ -51,7 +51,7 @@ Progress:
   - Contribution bars in the sector movers table.
   - A day-range bar in the quote board. The band is the next session's after the close, so the track also spans today's prices.
   - Margin lines in the financial trends.
-- All ten candidates are built. Merge order: #252 → #253 → #255.
+- All ten candidates are built and merged (#252, #253, #255).
 - Keyless data the throwaway identity reads for real: market flows, DGBAS series, FinMind listing flows and sector movers.
 - The smoke kit's fake Fugle prices were moved to about 2,420. TWSE's real band (2,180–2,660) refuses proposals at 1,05x.
 

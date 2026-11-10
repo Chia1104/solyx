@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -23,7 +23,7 @@ The user decided:
 - Pushes go through `@orpc/publisher`'s `MemoryPublisher`, picked for memory: it keeps at most 100 unread events per subscriber (oldest dropped), releases on abort or port close, and keeps nothing when resume is off. `node:events` `on()` buffers without bound and yields untyped arrays.
 - The backup worker stays on its own protocol for now.
 
-**Why:** It replaces bindIpc channel maps, `webContents.send` broadcasts and the Fubon id/answer protocol with typed contracts. Contracts must live in `src/shared`, since the renderer's tsconfig cannot read main's types.
+**Why:** It replaces bindIpc channel maps, `webContents.send` broadcasts and the Fubon id/answer protocol with typed contracts. Contracts must live in `src/shared` (now `packages/api`, since #293), since the renderer's tsconfig cannot read main's types.
 
 **How to apply:** The whole stack was built and merged into develop on 2026-10-15 (`d57784e`…`9b0dddf`); new procedures follow its conventions below. What each PR held:
 
@@ -33,9 +33,9 @@ The user decided:
 - #173 (`feat/orpc-market-agent`): market and agent, and removes `bindIpc`, `window.solyx`, `shared/ipc` and the contextBridge.
 - #174 (`feat/orpc-fubon`): the Fubon utility process.
 
-Conventions the stack set, also recorded in desktop `AGENTS.md`:
+Conventions the stack set, also recorded in desktop `AGENTS.md` then and in `packages/api/AGENTS.md` since the backend split:
 
-- Shapes live in `shared/<module>.ts` and contracts in `shared/rpc/<module>.contract.ts`; the renderer imports a contract only for its type.
+- Shapes live in `shared/<module>.ts` and contracts in `shared/rpc/<module>.contract.ts` (now `packages/api/src/<module>.ts` and `packages/api/src/rpc/<module>.contract.ts`); the renderer imports a contract only for its type.
 - A procedure that takes one value takes it as its input; one that takes several takes a named object.
 - Pushes are `changes` streams over the services' `windowEvents` (`MemoryPublisher`), followed in the renderer with `forEachEvent`.
 - A mutation that only calls its procedure uses `orpc.x.y.mutationOptions()`; listings go into inputs as they are (the user had `symbolInput` removed in review).
@@ -44,7 +44,7 @@ Conventions the stack set, also recorded in desktop `AGENTS.md`:
 
 Gotchas:
 
-- oRPC masks any error that is not an `ORPCError` as "Internal server error". `keepMessages` in `main/rpc/messages.ts` keeps it, for windows and for the Fubon process alike.
+- oRPC masks any error that is not an `ORPCError` as "Internal server error". `keepMessages` in `main/rpc/messages.ts` (now `packages/backend/src/rpc/messages.ts`) keeps it, for windows and for the Fubon process alike.
 - `MemoryPublisher<T extends Record<string, object>>` rejects interfaces, and lint's consistent-type-definitions rewrites `type X = {…}` into one, so `WindowEvents` is a `Record<…>`. Payloads are objects; a bare change is `{}`.
 - anti-slop forbids `as unknown as` and `unknown` parameters, so tests use a real `OrderDesk` and a `MemoryPublisher` subclass.
 - The preload now reads `window`, so it has its own DOM tsconfig.

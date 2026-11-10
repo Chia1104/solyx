@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -22,14 +22,14 @@ approved_by: auto-approve
 
 Advice given: fix the two TS hot spots first, then build MCPT, scans and walk-forward as Float64Array kernels on worker_threads, and use Rust only for intraday backtests, as WASM before napi-rs.
 
-Later the same day the user said shipping native modules is acceptable. The root AGENTS.md line was not changed yet. My view then: packaging is cheap, since both installers build on native runners (macos-26 arm64 with no universal build, windows-2025 x64) and CI needs a Linux build for tests. The real costs are two:
+Later the same day the user said shipping native modules is acceptable. The root AGENTS.md line was not changed yet (it names `@solyx/kernel` as the one native module now). My view then: packaging is cheap, since both installers build on native runners (macos-26 arm64 with no universal build, windows-2025 x64) and CI needs a Linux build for tests. The real costs are two:
 
 - A `.node` must sit in `app.asar.unpacked`, outside the asar integrity fuse, and macOS turns library validation off. Loaded into the backend, which can ask the main process to decrypt secrets, an edited addon would run as the app.
 - A native crash would take the OrderDesk down.
 
 So, if built, run it in its own utility process with no host port, as Fubon's SDK runs. Keep every rule (ticks, costs, adjustments, conditions) in TS, which hands the kernel columns. Build it only when a heavy workload arrives.
 
-2026-10-24: the user confirmed the design. They chose the name `@solyx/kernel` and folding the switch to the kernel into PR1. They also said to keep the enums napi generates, so `--no-const-enum` is not used; the current interface has no enums anyway. PR1 is #306 (`feat/kernel`), open.
+2026-10-24: the user confirmed the design. They chose the name `@solyx/kernel` and folding the switch to the kernel into PR1. They also said to keep the enums napi generates, so `--no-const-enum` is not used; the current interface has no enums anyway. PR1 is #306 (`feat/kernel`), open then, merged since.
 
 - Core's tests pass unchanged on the kernel, and results are JSON-identical to the old engine at 3,660 and 300k bars.
 - A packaged Solyx Test ran `backtest.rules` end to end, and only the kernel process maps `app.asar.unpacked`.
@@ -47,8 +47,8 @@ PR2 is #307 (`feat/kernel-columns`), stacked on #306, opened 2026-10-24.
 - The result shape changed: `entryTime`/`exitTime`, equity per session, and `interval`/`bars`.
 - `tools.candles` still refuses `since` on intraday bars.
 - 120 daily runs were identical to #306.
-- The backtest skill changed but the eval was not rerun, since it spends the user's tokens; ask first.
-- When #306 merges, retarget #307 to `develop`.
+- The backtest skill changed but the eval was not rerun then, since it spends the user's tokens; ask first (rerun 2026-10-25, below).
+- #307 merged since, with the rest of the stack.
 
 PR3 is #308 (`feat/kernel-validation`), stacked on #307, opened 2026-10-24. The user said to go ahead without the eval.
 
@@ -59,7 +59,7 @@ PR3 is #308 (`feat/kernel-validation`), stacked on #307, opened 2026-10-24. The 
 - In the kernel: one `simulate` loop, and rayon. napi `dyn-symbols` is back on, so `cargo test` runs as `@solyx/kernel#test`.
 - Parity with #307: 120 runs identical. A reordered subtraction in the sale was caught and fixed.
 - Electron smoke used the unpackaged build with Fugle faked in the backend.
-- The eval has still not been rerun.
+- The eval had still not been rerun at that point (rerun 2026-10-25, below).
 - #308's first CI run failed: a backup test timed out because `cargo test` compiled beside the JS tests on the 4-core runner. The fix is to compile the kernel before `vp run -r test`, with `vp run @solyx/kernel#build` and `cargo test --no-run`. CI passed after that.
 
 2026-10-25: I reviewed the user's real 3231 conversation on the dev build of #308.

@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -28,12 +28,12 @@ On 2026-10-27 the user approved the design for file upload in the agent composer
 
 Built on 2026-10-27:
 
-- PR1 is #350 (`feat/agent-attachments`) and PR2 is #351 (`feat/composer-file-upload`), stacked on it. Retarget #351 to develop after #350 merges.
+- PR1 is #350 (`feat/agent-attachments`) and PR2 is #351 (`feat/composer-file-upload`), stacked on it.
 - PR1 got two fixes after an automated security review. A conversation id must be a single folder name, since `../x` would have written outside `agent-workspaces`. An image's header is read for its size, and more than 50 MP is refused (`MAX_IMAGE_PIXELS`); images are scaled one at a time with a 60 s thread timeout.
 - **Links in the conversation folder:** a later review found that shell commands write in the conversation's folder, so a link could redirect where attachments are written or read. Writes are now new files (`wx`) in a new folder (`mkdir` without `recursive`) whose realpath is checked before and after it is made. `agent.attachment` reads only a regular file of at most 20 MB, opened with `O_NOFOLLOW`, inside that folder. A race with a command running during a send remains, since Node has no `openat`; at worst it creates new files holding the user's own content.
 - **oRPC multipart bug:** `@standard-server/peer` sends a FormData body's type as `blob.type`, which browsers lowercase together with the boundary. So any `File` sent through the window port or the device socket failed with "Malformed request". Node tests on both ends never show it, because Node's boundary has no capitals. It is patched (`patches/@standard-server__peer@0.10.3.patch`) and still unfixed upstream in 0.13.0. No upstream issue has been filed; ask before filing one.
 - Verified in the built app: picking, pasting, a real OS drag via CDP `Input.dispatchDragEvent`, refusals, blocking on DeepSeek V4 Pro (text only), the thread's thumbnails, and `image (2).png` deduplication.
-- #350 and #351 were merged on 2026-10-27. PR3 is #353 (`feat/agent-pdf-attachments`).
+- #350 and #351 were merged on 2026-10-27. PR3 is #353 (`feat/agent-pdf-attachments`, merged).
   - It reads PDFs with unpdf 1.9.1, which bundles pdf.js 6.4.299 and has no `eval`, in a worker thread with a 60 s limit and a 1 GB heap.
   - pdf.js's CMaps come from pdfjs-dist 6.4.299 (a devDependency) and are copied to `dist/utility/cmaps`. `@napi-rs/canvas` is kept out by `ignoredOptionalDependencies`.
   - Measured: a PDF with a predefined CMap (UniCNS-UCS2-H) and no embedded font reads as empty text without CMaps. Chrome's PDFs need none, but they map characters to Kangxi radicals (⽑), which `pdfText` NFKC-normalises.
@@ -47,13 +47,13 @@ Built on 2026-10-27:
     - Tags are `name=… [path=…] type size [pages] [characters]`, and attributes are parsed in any order.
     - The `beforeRequest` hook (externalizing images) was rejected for prompt-cache and context-estimate reasons.
 
-- 2026-10-28, PR #354 (`feat/attachment-preview`), asked by the user: pressing a file in the composer or a sent message opens a modal preview of what the agent reads (image, text, a PDF's read text, first 100,000 characters). Sent messages show files as 48px icons with a name/type/size tooltip. New `agent.attachmentText` (null once a command removed the kept file, shown as an i18n message) and `agent.fileText` (pending PDF text through the same worker); `carriedFile` replaced `attachmentImage` in transcript/runtime. My picks: a pending PDF previews its extracted text, not the PDF itself (no plugin/CSP change), and the 48px icon size.
+- 2026-10-28, PR #354 (`feat/attachment-preview`, merged), asked by the user: pressing a file in the composer or a sent message opens a modal preview of what the agent reads (image, text, a PDF's read text, first 100,000 characters). Sent messages show files as 48px icons with a name/type/size tooltip. New `agent.attachmentText` (null once a command removed the kept file, shown as an i18n message) and `agent.fileText` (pending PDF text through the same worker); `carriedFile` replaced `attachmentImage` in transcript/runtime. My picks: a pending PDF previews its extracted text, not the PDF itself (no plugin/CSP change), and the 48px icon size.
 
 Background facts:
 
 - pi-ai's user content is only text and image.
 - `AgentModelOption` lacks the model's input modalities.
-- oRPC carrying a `Blob` over the window's three MessagePort hops was not yet verified.
+- oRPC carrying a `Blob` over the window's three MessagePort hops was not yet verified when the design was approved; the built-app check above showed it works once the multipart patch is in.
 
 Related: [[solyx-composer-attachments]], [[solyx-agent-work-steps]]
 

@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -20,6 +20,6 @@ Still open from that work: the user chose to give `OrderDesk` no quote feed yet,
 
 **Why:** a later session may be asked about market orders or the quote feed and should know this was a deliberate deferral, not a bug.
 
-**How to apply:** do not add a quote feed to `OrderDesk` unasked; raise it as an option when market orders come up. See [[solyx-commit-to-main]].
+**How to apply:** do not add a quote feed to `OrderDesk` unasked; raise it as an option when market orders come up. (Outdated since #215 and #221: market orders are sized at limit-up, and the desk checks a proposal's price premise at confirm.) See [[solyx-commit-to-main]].
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-deepen-modules-refactor.md`, type `project`).

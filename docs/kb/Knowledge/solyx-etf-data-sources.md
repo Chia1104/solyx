@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -26,7 +26,7 @@ Round two, all merged into `develop` by 2026-10-12 ("當初評估還沒做的先
 
 **The user's decisions, and where I went another way:**
 
-- NAV and premium: the user said to try `mis.twse.com.tw/stock/data/all_etf.txt`. It parses (359 funds), but I did not wire it in: TWSE's terms of use (`www.twse.com.tw/zh/terms/use.html`, the same text inside the MIS site) forbid downloading the site's data by automated devices, scripts or crawlers without the exchange's consent, and `mis.twse.com.tw/robots.txt` is `Disallow: /`. This was reported to the user, not yet answered. Do not build it unless they say so knowing this.
+- NAV and premium: the user said to try `mis.twse.com.tw/stock/data/all_etf.txt`. It parses (359 funds), but I did not wire it in: TWSE's terms of use (`www.twse.com.tw/zh/terms/use.html`, the same text inside the MIS site) forbid downloading the site's data by automated devices, scripts or crawlers without the exchange's consent, and `mis.twse.com.tw/robots.txt` is `Disallow: /`. This was reported to the user, not yet answered then. Do not build it unless they say so knowing this. Settled since: root `AGENTS.md` forbids reading TWSE's websites, and NAV comes from SITCA's open data (#189, [[solyx-fund-data-evaluation]]).
 - Holdings and fees: the user chose guiding the agent to look them up. NAV and premium went into the same skill, read from the issuer's own pages.
 
 **Why:** the terms finding is what a later session would otherwise miss and build anyway.
@@ -38,7 +38,7 @@ Round two, all merged into `develop` by 2026-10-12 ("當初評估還沒做的先
 - Neither exchange's open data, nor FinMind, carries an ETF's NAV. TPEx has no list of funds (`/tpex_opfund_*` is its open-ended fund platform). FinMind's `TaiwanStockActiveETFHolding` has actively managed ETFs' holdings but needs a paid plan (free answers 400).
 - FinMind publishes OpenAPI 3.1 at `api.finmindtrade.com/openapi.json`. Its `TaiwanStockTradingDate` already lists trading days through the year's end, so TWSE's `holidaySchedule` only names closures; it covers the current year and also lists weekends and first and last trading days.
 - `PAPER_LIMITS` allows every session, so the desk's session check refuses nothing today.
-- Not read yet: `t187ap13` (transfers declared and not made), `t187ap09_L` (directors' pledges), `t187ap02_L` (holders above 10%), `t187ap38_L` (proposed dividends, TWSE only), attention stocks (`/announcement/notice`).
+- Not read yet: `t187ap13` (transfers declared and not made), `t187ap02_L` (holders above 10%), `t187ap38_L` (proposed dividends, TWSE only). Read since: attention stocks (`/announcement/notice`, #222) and `t187ap09_L` (directors' pledges, #225), both in `packages/fundamentals/src/tw-exchanges.ts`.
 - Seen 2026-10-12: `www.stat.gov.tw` fails from Node and curl, so the macro calendar read nothing; cause and fix are in [[solyx-calendar-sources]].
 
 Related: [[solyx-agent-autonomy]], [[solyx-calendar-sources]], [[solyx-investor-flows]], [[solyx-test-run-quirks]], [[solyx-isolated-smoke-run]]

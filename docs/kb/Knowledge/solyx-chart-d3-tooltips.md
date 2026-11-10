@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -31,7 +31,7 @@ On 2026-10-21 the user asked to improve chart presentation.
 
 - I recommended Recharts. HeroUI Pro's charts are Recharts too, but Pro is paid, so open-source CI and contributors cannot install it.
 - The user wanted something lighter: d3 with a tooltip of our own.
-- Built as a stack:
+- Built as a stack (merged, as is #258):
   - #259 adds `d3-scale` and `d3-shape` to the `charts` catalog. It moves Sparkline, MarginLines (one band a quarter reaching halfway to its neighbours, with dots on hover), TrendColumns and CalibrationChart onto them, and adds the rule to the renderer AGENTS.md.
   - #260 does the same for net buying (d3 `stackOffsetDiverging`), realized trips, the forecast strip and stance history.
 - First version: I wrote a pointer-following portal `ChartTooltip`, claiming HeroUI's Tooltip needs a focusable trigger. The user pointed out that the heat map already gets one with `Focusable` + `Tooltip`.

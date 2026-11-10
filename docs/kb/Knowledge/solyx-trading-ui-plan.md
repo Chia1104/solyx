@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -14,7 +14,7 @@ approved_by: auto-approve
 
 # 2026-10-19 plan to bring Shioaji Pro's order-entry UI into Solyx (quote board, 五檔, symbol-page ticket, chart overlays, positions dock, 分時); user picked right rail, stream-else-poll, drop the old form; stack #244→#245→#247→#248→#249 built 2026-10-19
 
-On 2026-10-19 the user asked how Shioaji Pro's buy/sell UI flow and its trading charts could be integrated into Solyx. This was analysis only and nothing was built. AGPL applies, so only concepts are taken.
+On 2026-10-19 the user asked how Shioaji Pro's buy/sell UI flow and its trading charts could be integrated into Solyx. This was analysis only at first, and nothing was built until the user's picks below (then built and merged, under Progress). AGPL applies, so only concepts are taken.
 
 **Proposed order, one PR each, stacked:**
 
@@ -39,7 +39,7 @@ On 2026-10-19 the user asked how Shioaji Pro's buy/sell UI flow and its trading 
 
 - The ticket goes in a right rail on the symbol page.
 - 五檔 streams and falls back to polling: the stream when there is room, else REST every 5 s in the regular session.
-- Drop the free-text proposal form now. No Cmd+K palette for now.
+- Drop the free-text proposal form now. No Cmd+K palette for now (a `Mod+K` listing search came later, with #360).
 
 **Progress:**
 
@@ -84,7 +84,7 @@ On 2026-10-19 the user asked how Shioaji Pro's buy/sell UI flow and its trading 
     - The right pane's tab list is its header (HeroUI's secondary tab styles need `Tabs.ListContainer` as a direct child of `Tabs`). The tabs are 對話 (`chat`), 交易 (`proposals`: pending, working, fills, history), 買賣 (`ticket`) and 損益 (`profit-loss`). Session controls show only on chat.
     - I read the user's "對話及管理、交易、買賣跟損益" as those four tabs.
 - **Merged:** #244–#250 into develop by 2026-10-20.
-- **#251 (`feat/hold-to-confirm`, 2026-10-20):** hold-to-confirm on the proposal button, after a video the user sent.
+- **#251 (`feat/hold-to-confirm`, 2026-10-20, merged since):** hold-to-confirm on the proposal button, after a video the user sent.
   - `HoldButton` uses a 1.2 s clip-path ink wipe. Only release ends a hold, because a reflow moved the button out from under the pointer in a smoke run.
   - A virtual press confirms at once.
   - The website demo mirrors it.
@@ -93,7 +93,7 @@ On 2026-10-19 the user asked how Shioaji Pro's buy/sell UI flow and its trading 
   - **Built:** `useOpenSale` navigates (`search: true`), or only shows the panel when that page is already open, since the defaults-filled URL pushed a duplicate entry. The ticket tab is force-mounted (`data-inert:hidden`), both modes stay mounted, and the mode lives in `useTicketStore`. Depth is followed only while the panel is in view. A sale request `form.reset`s to a limit at the last price. There is an odd-shares hint.
   - **Reproduced on develop:** a stale request filled a sale in later, and a book pick made while 對話 showed was dropped (the panel mounted after it).
   - **Seen, left alone:** `search: true` from the overview carries `tab=today` into the symbol URL; symbol rows and the search do the same.
-- **Merge order (old stack):** #244 → #245 → #247 → #248 → #249 → #250. Retarget each onto develop as its base merges.
+- **Merge order (old stack):** #244 → #245 → #247 → #248 → #249 → #250, all merged (above).
 - **Unseen:** whether Fubon's Normal mode offers `aggregates`; and whether Fugle's `aggregates` snapshots on subscribe (we seed with a REST read anyway).
 - **Band and the board:** `market.band` gives the band of the session an order goes to. After the close it is "–" until TWSE publishes the next limits, which is late in the evening.
 

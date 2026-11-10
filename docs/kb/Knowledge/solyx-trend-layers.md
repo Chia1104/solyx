@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -20,10 +20,10 @@ On 2026-10-09 the user asked to bring kansoku's (`~/Documents/GitHub/kansoku`) c
 - #67 `@solyx/core/levels` (52-week range, volume profile, support zones, breaks) + `<Series markers bands>` with a `PriceBands` primitive.
 - #68 relative strength pane via `BENCHMARK` in core/market.
 - All three landed on develop in order on 2026-10-09 (34b8d8f, 99f4114, 6bcaafd); see [[solyx-stacked-pr-merges]].
-- #70 (from develop): `vwap` (reset per exchange day, each session's last point transparent so LW draws no jump), `previousSession`/`openingRange` (first 30 min, bars ≤30m, after it passes). #71 (from develop): anchor marker on the first forecast path, direction + outcome.
-- Only rendered with synthetic bars; never checked against real Fugle data in the app (index candles for IX0001 are documented, not observed).
+- #70 (from develop): `vwap` (reset per exchange day, each session's last point transparent so LW draws no jump), `previousSession`/`openingRange` (first 30 min, bars ≤30m, after it passes). #71 (from develop): anchor marker on the first forecast path, direction + outcome. Both merged.
+- Only rendered with synthetic bars; never checked against real Fugle data in the app (index candles for IX0001 are documented, not observed). That was 2026-10-09; the user's run of the rotation graph on 2026-10-21 showed Fugle serving index bars ([[solyx-sector-rotation]]), though I still have not checked these layers on real data.
 
 **Why:** the user wants SEPA-style trend reading on their own Taiwan data.
-**How to apply:** the original plan is fully opened; US pre/post-market shading waits for a US data source. A Lightweight Charts marker's `shape` must be written `["shape"]` because the vendored anti-slop lint bans the identifier. Related: [[solyx-research-forecast-design]].
+**How to apply:** the original plan is fully merged; US pre/post-market shading waited for a US data source, which exists since #357 (Longbridge), and is still not built. A Lightweight Charts marker's `shape` must be written `["shape"]` because the vendored anti-slop lint bans the identifier. Related: [[solyx-research-forecast-design]].
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-trend-layers.md`, type `project`).

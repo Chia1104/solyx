@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -14,7 +14,7 @@ approved_by: auto-approve
 
 # 2026-10-25 SPACE ruled out; sandbox-runtime probed (macOS, Electron utility process, Linux Docker) and built as PR #326 (macOS-only shell sandbox); gotchas found while building
 
-On 2026-10-25 the user asked whether perplexityai/SPACE or anthropics/sandbox-runtime could sandbox the agent. They then asked for a spike, then said "直接幫我進去吧": built as PR #326 (branch `feat/shell-sandbox`), open as of 2026-10-25.
+On 2026-10-25 the user asked whether perplexityai/SPACE or anthropics/sandbox-runtime could sandbox the agent. They then asked for a spike, then said "直接幫我進去吧": built as PR #326 (branch `feat/shell-sandbox`), open as of 2026-10-25, merged since.
 
 **SPACE: ruled out.** It runs Firecracker on Kubernetes and needs a Linux x86_64 host with KVM, Docker running privileged containers, and Kind. It does not run on macOS. Using it would mean a cloud service or a cluster the user runs, which conflicts with invariant 5 (no relay server).
 
@@ -43,7 +43,7 @@ On 2026-10-25 the user asked whether perplexityai/SPACE or anthropics/sandbox-ru
 
   A read-denied home becomes a tmpfs, so writes there "succeed" but never reach the host. The Ubuntu 24.04 AppArmor userns restriction was not tested.
 
-- **Not tested:** Windows (no VM here), a packaged signed build, and the real Solyx Safe Storage item. The last was left alone on purpose, because reading it prompts the user.
+- **Not tested:** Windows (no VM here; probed later on a CI runner, below), a packaged signed build, and the real Solyx Safe Storage item. The last was left alone on purpose, because reading it prompts the user.
 
 Integration path: in `packages/agent/src/shell.ts`, set `execution.command = await SandboxManager.wrapWithSandbox(execution.command)` inside `createBashTool({ prepare })`. pi-durable runs the command `prepare` rewrote.
 
@@ -53,8 +53,8 @@ Integration path: in `packages/agent/src/shell.ts`, set `execution.command = awa
 
 **What PR #326 built.** These were my picks; the user asked for none of them:
 
-- The sandbox is macOS only. Windows stays unsandboxed, and Linux is not shipped.
-- The paper-only rule is kept everywhere. Lifting it is still the user's call.
+- The sandbox is macOS only. Windows stays unsandboxed, and Linux is not shipped. (True of the first commit only: the second commit, below, added Linux bubblewrap and the user's switch.)
+- The paper-only rule is kept everywhere. Lifting it is still the user's call (Linear CHI-80).
 - `packages/agent/src/sandbox.ts` holds the policy and is exported for the settings route's `SANDBOXED`.
 - A command's HOME is its workspace, and its TMPDIR is `<workspace>/.tmp`.
 - Readable folders are the workspace, the offered skills' folders and the PATH folders under the home plus their symlink targets, where a target in `bin/` opens its parent.
@@ -102,7 +102,7 @@ Integration path: in `packages/agent/src/shell.ts`, set `execution.command = awa
 - **Run 8, encoding.** CJK prints as `??` in both 5.1 and 7 unless `[Console]::OutputEncoding` is UTF-8. In 5.1, `>` writes UTF-16LE with a BOM.
 - **My recommendation to the user:** a junction per conversation under a per-user ProgramData folder, plus a fixed PowerShell preamble covering UTF-8, ErrorAction, ProgressPreference, default encoding and the exit code.
 
-**User's decision, 2026-10-25.** Windows gets no sandbox for now. The sandbox becomes a user switch `agent.shellSandbox`: on by default for macOS and Linux. On Windows the switch is disabled and says "not available yet"; scripts still run, through ask or the decisions model in auto. This was built into PR #326 as a second commit, b90e60b3:
+**User's decision, 2026-10-25.** Windows gets no sandbox for now (Linear CHI-30). The sandbox becomes a user switch `agent.shellSandbox`: on by default for macOS and Linux. On Windows the switch is disabled and says "not available yet"; scripts still run, through ask or the decisions model in auto. This was built into PR #326 as a second commit, b90e60b3:
 
 - Linux uses bubblewrap and seccomp.
 - `sandboxProblems()` refuses commands rather than fall back. A missing seccomp filter counts as a problem, and so does a failing bwrap user-namespace smoke test.

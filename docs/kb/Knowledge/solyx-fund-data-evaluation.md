@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -16,13 +16,13 @@ approved_by: auto-approve
 
 On 2026-10-17 the user asked whether Solyx had data on Taiwan ETFs and mutual funds. After my evaluation they decided to do ETFs only. They agreed mutual funds are of little value, since the app cannot order them and open data has no NAV history or holdings.
 
-**Opened 2026-10-17:** #188 and #189 both branch from `develop`, unstacked, and merge cleanly together.
+**Opened 2026-10-17, all merged since:** #188 and #189 both branched from `develop`, unstacked.
 
 - #188 `fix/delisted-funds`: `getFunds` drops funds missing from TWSE's `exchangeReport/STOCK_DAY_ALL`. That list also holds listings that did not trade. TWSE's `t187ap47_L` kept 31 delisted funds, and its delisting list names companies only.
 - #189 `feat/fund-nav`: `@solyx/fundamentals/sitca` (`FundReportsProvider`). `get_fundamentals` shows the NAV, the same session's premium and the month's costs, and the `fund-research` skill was updated. README credits the Open Government Data License.
-- #190 `feat/fund-premium-check`, stacked on #189: the skills now have the agent check a premium or discount above 1%, or unusual for that kind of fund, against the issuer's NAV history and quota notices before giving a view or a buy. The user chose this over storing history, since history would be patchy without scheduled reads. Retarget it to `develop` after #189 merges.
+- #190 `feat/fund-premium-check`, stacked on #189: the skills now have the agent check a premium or discount above 1%, or unusual for that kind of fund, against the issuer's NAV history and quota notices before giving a view or a buy. The user chose this over storing history, since history would be patchy without scheduled reads.
 
-**Decision I changed from my own plan:** I told the user "折溢價歷史從開始抓的那天累積", but built no history. Accumulating it would need a scheduled read, and `apps/desktop/src/main/AGENTS.md` forbids prefetching on the scheduler. #189's body says so. Ask before adding read-time accumulation.
+**Decision I changed from my own plan:** I told the user "折溢價歷史從開始抓的那天累積", but built no history. Accumulating it would need a scheduled read, and `apps/desktop/src/main/AGENTS.md` (its rules are in `packages/backend/AGENTS.md` since the backend split) forbids prefetching on the scheduler. #189's body says so. Ask before adding read-time accumulation.
 
 **Source facts not to re-derive:**
 

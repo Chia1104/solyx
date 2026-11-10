@@ -30,6 +30,6 @@ Seen 2026-10-12 in the solyx checkout:
 Related: [[solyx-isolated-smoke-run]]
 
 - CI runs `vp run -r test` (each package's own `vp test`), not a root `vp test run`, and the two can disagree. Seen 2026-10-24 on #303: `@opentelemetry/api` existed at 1.9.1 (Sentry) and 1.10.0 (agent, backend); vitest takes it as an optional peer, so pnpm installed two `vite-plus@1.4.0` copies, and every agent test failed only per-package with "Vitest failed to find the current suite". Fixed by an `overrides` entry pinning the API to `catalog:otel`. Check with `readlink -f packages/*/node_modules/vite-plus` that every package shares one copy, and run `vp run -r test` before pushing a dependency bump. Right after such an install, the first `vp run -r test` can fail with ENOTEMPTY on `node_modules/.vitest-cache` (parallel cache clears); rerun.
-- `packages/backend/tests/backup-threads.test.ts` flakes with `RangeError: Invalid time value` from `packages/backup/tests/fixtures/fake-s3.ts` (signRequest on a missing `x-amz-date`), on develop too: 1 in 2 runs on 2026-10-30. Not caused by the change under test; unfixed.
+- `packages/backend/tests/backup-threads.test.ts` flakes with `RangeError: Invalid time value` from `packages/backup/tests/fixtures/fake-s3.ts` (signRequest on a missing `x-amz-date`), on develop too: 1 in 2 runs on 2026-10-30. Not caused by the change under test; unfixed (Linear CHI-78).
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-test-run-quirks.md`, type `reference`).

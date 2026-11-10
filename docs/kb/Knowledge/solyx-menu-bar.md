@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -26,12 +26,12 @@ Slice plan (each its own PR): (1) single-instance lock, tray with Open/Quit, sta
 
 Built on 2026-10-10 as a stack: #88 `feat/desktop-tray` (slice 1) and #89 `feat/desktop-tray-waiting` (slice 2, based on #88). The user asked for the commit and to continue ("先幫我 commit 再接續吧").
 
-- #88 also moved the language preference from the renderer's localStorage into `appearance.language`, because the main process writes the tray's menu; #89 moved the time zone into `appearance.timeZone` and the clock formatter into `#shared/clock.ts` for the same reason. Neither migrates the old localStorage value.
-- #89 added `main/modules/workspace` (the main process asks a window for a place: proposals tab, a conversation, a settings section; the window takes it on a push and as it loads), `main/modules/agent/waiting-calls.ts` (conversations with a call waiting, from run events), and the menu's rows and count.
-- Left for slice 3 on: OS notifications (and a first-time hint on Windows that the app stayed in the tray), launch at login, a changed icon on Windows and Linux, where nothing but hover text shows the count.
+- #88 also moved the language preference from the renderer's localStorage into `appearance.language`, because the main process writes the tray's menu; #89 moved the time zone into `appearance.timeZone` and the clock formatter into `#shared/clock.ts` (now `packages/api/src/clock.ts`) for the same reason. Neither migrates the old localStorage value.
+- #89 added `main/modules/workspace` (the main process asks a window for a place: proposals tab, a conversation, a settings section; the window takes it on a push and as it loads), `main/modules/agent/waiting-calls.ts` (conversations with a call waiting, from run events), and the menu's rows and count. Both modules sit under `packages/backend/src/modules/` since the backend split.
+- Left for slice 3 on: OS notifications (Linear CHI-21; and a first-time hint on Windows that the app stayed in the tray), launch at login (Linear CHI-22), a changed icon on Windows and Linux, where nothing but hover text shows the count.
 
 **Why:** these choices came from the user and the plan spans several sessions.
 
-**How to apply:** continue from the next unbuilt slice; follow [[solyx-commit-to-main]] and [[solyx-stacked-pr-merges]] when committing. #89 must be retargeted to `develop` once #88 merges. Unverified: a conversation waiting for approval, a running task and update rows in a real run (only tests); macOS notifications and login items under the ad-hoc signature (Electron 44 says notifications need a code-signed app), close-to-tray on Windows, and tray presence on Linux desktops without an indicator host. See [[solyx-isolated-smoke-run]] for how the tray was checked.
+**How to apply:** continue from the next unbuilt slice; follow [[solyx-commit-to-main]] and [[solyx-stacked-pr-merges]] when committing. #88 and #89 are both merged. Unverified: a conversation waiting for approval, a running task and update rows in a real run (only tests); macOS notifications and login items under the ad-hoc signature (Electron 44 says notifications need a code-signed app), close-to-tray on Windows, and tray presence on Linux desktops without an indicator host. See [[solyx-isolated-smoke-run]] for how the tray was checked.
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-menu-bar.md`, type `project`).

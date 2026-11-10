@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -36,7 +36,7 @@ approved_by: auto-approve
 - The user picked the first fix: take today's sector close from the heat map's quotes.
 - Also seen: on a Sunday the weekly reading still left out the week just closed (latest 10-16).
 
-**Stack #316 → #317 → #319, 2026-10-25:**
+**Stack #316 → #317 → #319, 2026-10-25 (all merged):**
 
 - #317 `weekUnderWay(market, at, trades = weekdays)` in core: a week stays under way while a regular session of it has yet to close. `rotationPaths` takes `openWeek: string | null`, and `RotationClock` holds `at`.
 - #319 builds two reader sets with `spanReaders`:
@@ -45,12 +45,12 @@ approved_by: auto-approve
   - A listing's page still reads its sector index's intraday bar, so it does not spend 31 quotes.
 - Smoke test on the free plan: 31 quotes plus 1 intraday candle; the newest year showed at 2 s and everything was in at 61 s; the weekly reading ended at 10-23 on a Sunday.
 
-**Decisions I made (user did not weigh in):** sector series are TWSE's own indices (IX00xx) against IX0001, not twstockrs's equal-weight rebuild, since solyx keeps no membership history; periods reuse RELATIVE_STRENGTH_PERIODS (20/60/120), trail fixed at 10; quadrant backgrounds carry no red/green (renderer design rule); listing rotations in `get_rotation` use `adjustedCandles`; weekly frequency was left out.
+**Decisions I made (user did not weigh in):** sector series are TWSE's own indices (IX00xx) against IX0001, not twstockrs's equal-weight rebuild, since solyx keeps no membership history; periods reuse RELATIVE_STRENGTH_PERIODS (20/60/120), trail fixed at 10; quadrant backgrounds carry no red/green (renderer design rule); listing rotations in `get_rotation` use `adjustedCandles`; weekly frequency was left out at first (built in #268).
 
 **Unverified:** the #264 fixes and #266's chart were not seen running by me.
 
 **Why:** the user may ask to extend or revisit these picks; [[solyx-chart-d3-tooltips]] holds the ChartMark pattern the chart follows.
 
-**How to apply:** if asked for weekly rotation, `resampleDaily` exists; TPEx sector indices do exist in Fugle's data (IX0044–IX0059, IX0075, IX0099, IX0100, IX0189–IX0191, seen in a snapshot on 2026-10-30); whether historical candles serve them is unchecked.
+**How to apply:** weekly rotation is built (#268); TPEx sector indices do exist in Fugle's data (IX0044–IX0059, IX0075, IX0099, IX0100, IX0189–IX0191, seen in a snapshot on 2026-10-30); whether historical candles serve them is unchecked.
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-sector-rotation.md`, type `project`).

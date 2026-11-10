@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -31,12 +31,12 @@ On 2026-10-17 the website was put on Void (voidzero's `void` 1.1.11) in framewor
 
 - #208 was merged by the user as a9dcb1b; the classifier denied my `gh pr merge`.
 - The Website workflow's first CI deploy succeeded (run 39050007949). Docs navigation was verified live in a browser, with no errors.
-- The worktree and local branch were removed. The remote branch `ci/website-deploy` was left.
+- The worktree and local branch were removed. The remote branch `ci/website-deploy` was left (gone by 2026-11-11: `git ls-remote` no longer lists it).
 - Open, the user's call:
-  - Cloudflare injects a Web Analytics beacon (static.cloudflareinsights.com, `/cdn-cgi/rum`) into browser requests. This breaks the website AGENTS rule "no analytics" and is a zone setting, not repo code.
-  - Apex TLS was slow from the user's machine: about 0.6–1.4 s against about 0.1 s for download.usesolyx.trade on the same IPs. The apex serves the universal cert issued 2026-10-17 15:14 UTC; the cause is unknown, and the user was told to recheck later.
+  - Cloudflare injects a Web Analytics beacon (static.cloudflareinsights.com, `/cdn-cgi/rum`) into browser requests. This breaks the website AGENTS rule "no analytics" and is a zone setting, not repo code. (Linear CHI-18)
+  - Apex TLS was slow from the user's machine: about 0.6–1.4 s against about 0.1 s for download.usesolyx.trade on the same IPs. The apex serves the universal cert issued 2026-10-17 15:14 UTC; the cause is unknown, and the user was told to recheck later. On 2026-11-11 it no longer reproduced from this machine (TLS 0.07 s, total 0.40 s).
 
-**Social cards (PR #209, `feat/website-og-images`, worktree `../solyx-website-og`, opened 2026-10-18).**
+**Social cards (PR #209, `feat/website-og-images`, worktree `../solyx-website-og`, opened 2026-10-18, merged).**
 
 - The user picked Fumadocs' Takumi recipe (`generateOGImage` from `fumadocs-ui/og/takumi`). Its TanStack Start variant needs Nitro's prerender, because TanStack's prerender writes `res.text()` and corrupts images.
 - So a client-env Vite plugin (`socialCards` in vite.config.ts) draws the cards in Node with `takumi-js/node` (native). It uses Archivo plus all 108 Noto Sans TC fontsource slices registered under one name, which renders CJK fine. It emits `og/<path>/image.png`.
@@ -44,14 +44,14 @@ On 2026-10-17 the website was put on Void (voidzero's `void` 1.1.11) in framewor
 - Measured runtime cost on Workers Free, the reason it was not done at runtime: WASM takes 4–9 ms warm, about 60 ms CPU on a cold first render, and about 170 ms to register a CJK font. The 10 ms cap would mean 1102 errors.
 - A Worker size limit is no longer the issue: since 2026-09 there is only the 64 MiB uncompressed limit.
 
-**Docs layout (PR #210, `feat/website-docs-layout`, worktree `../solyx-website-layout`, 2026-10-18).**
+**Docs layout (PR #210, `feat/website-docs-layout`, worktree `../solyx-website-layout`, 2026-10-18, merged).**
 
 - The user compared docs/Spacious/Glass/Notebook screenshots and chose Spacious, which is Base UI only. It needs the `fumadocs-ui/css/generated/spacious.css` import.
 - Verified: the panel scrolls, not the window. Page changes reset to the top, the TOC works, and mobile is fine.
 - #209 (social cards) was merged by the user.
 - At the user's request, the Fumadocs bump to 16.17.5 (core and base-ui) was added to #210 as commit a54e0a5. Search was verified in en and zh-TW.
 
-**Download page and changelog (stack #211 → #212, worktrees `../solyx-website-download` and `../solyx-website-changelog`, 2026-10-18).**
+**Download page and changelog (stack #211 → #212, worktrees `../solyx-website-download` and `../solyx-website-changelog`, 2026-10-18, both merged).**
 
 - Data: GitHub releases are read once per build in Node through `readReleases(GITHUB_TOKEN)` in `src/lib/releases.ts` (zod, drafts skipped). They are exposed as the virtual modules `virtual:latest-releases` and `virtual:release-notes`, typed in `src/virtual-modules.d.ts` via `#lib/releases`, because relative imports are banned in ambient modules.
 - Installers link to GitHub release assets, because R2 keeps only the newest nightly.
@@ -72,11 +72,11 @@ On 2026-10-17 the website was put on Void (voidzero's `void` 1.1.11) in framewor
 - `void.config.ts` has the `routes` custom_domain `usesolyx.trade`. Routes turn workers.dev and preview URLs off, so Void stages the version at 0% and probes `usesolyx.trade/__void/ready`. No `CLOUDFLARE_WORKERS_SUBDOMAIN` is needed (checked in `@void/deploy-cloudflare`).
 - The Worker name derives from the package: `solyx-website`. `void domain add` with void.config.ts edits `.void-wrangler.jsonc` and the lock, not void.config.ts.
 - Planned order: the user does the first deploy locally, commits `void.lock.json` (which pins the account), then merges. The token needs Workers Scripts: Edit plus Zone Workers Routes: Edit on usesolyx.trade.
-- Unverified until it runs: the CI deploy itself.
+- Unverified until it runs: the CI deploy itself. (It ran: the first CI deploy succeeded on 2026-10-18, see the state above.)
 - Void 1.1.11 bug, found on the user's first local deploy (2026-10-17). Three things stash the pointer in `.void/preview-deploy-config.json`: every ordinary build; `migrateLegacyVoidConfig` at the start of every deploy, if a pointer exists; and the `finally` of every deploy. The next deploy build's prerender preview restores that stash and registers an on-exit delete of `.wrangler/deploy/config.json`, so `void deploy` fails with ENOENT on that file.
   - The fix is to delete both the stash and `.wrangler/deploy` before each local deploy. This was proven by simulating it with Void's own migrate function. A fresh CI checkout has neither.
   - My mistake: the leftover pointer from my test builds caused two of the user's failures, so clean up after test builds.
-  - No workaround was landed in the repo; reporting it upstream was offered to the user.
+  - No workaround was landed in the repo; reporting it upstream was offered to the user (Linear CHI-45).
 - The second blocker: "built Worker contains an unsupported module assets/meta-color-….svg".
   - Cause: TanStack Start's `builder.buildApp` replaces the Cloudflare plugin's `createBuildApp`, which moves server-emitted assets to the client. Void's copyBundle rejects any non-module file in `dist/server`.
   - Fix (commit 2efdc7e on #208): an inline plugin's `configEnvironment` sets ssr `build.emitAssets: false`. A user `environments.ssr.build.emitAssets` alone loses to the Cloudflare plugin.
@@ -88,6 +88,6 @@ On 2026-10-17 the website was put on Void (voidzero's `void` 1.1.11) in framewor
   - Lesson: verify client-side navigation in a browser, not just curl.
 - 2026-10-17 DNS: usesolyx.trade is on Cloudflare NS; the apex and www have no records.
 
-Workers Free fits this site: the Worker is about 1.06 MiB uncompressed against a 64 MiB limit, there are 55 static files against a 20,000 limit, and requests for static assets are free and unlimited. Only requests that match no file count toward the 100k/day limit and the 10 ms CPU limit. Whether the SSR 404 page stays under 10 ms has not been measured. A custom domain is added with `void domain add <host>`. It needs the zone to be active in the same Cloudflare account, and the hostname must not already have a CNAME. The command writes a route into `void.config.ts`, which then needs committing.
+Workers Free fits this site: the Worker is about 1.06 MiB uncompressed against a 64 MiB limit, there are 55 static files against a 20,000 limit, and requests for static assets are free and unlimited. Only requests that match no file count toward the 100k/day limit and the 10 ms CPU limit. Whether the SSR 404 page stays under 10 ms has not been measured (Linear CHI-45). A custom domain is added with `void domain add <host>`. It needs the zone to be active in the same Cloudflare account, and the hostname must not already have a CNAME. The command writes a route into `void.config.ts`, which then needs committing.
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-website-void.md`, type `project`).

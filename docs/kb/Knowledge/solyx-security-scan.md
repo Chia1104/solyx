@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -27,9 +27,9 @@ Filed as private draft security advisories on Chia1104/solyx, by the user's choi
 - GHSA-cjqm-5prm-f6w5: backup thinning deletes other installations' keys
 - GHSA-rjw8-37p7-8qp7: unbounded backtest rule tree on main thread
 
-Fixes opened 2026-10-22 as independent PRs against develop, unmerged: #277 shell judge, #278 shared skills, #279 sign-in callback, #280 memory, #281 backup thinning, #282 mandate day (counts the broker's tagged orders the store lost; fails closed as `day-unknown`), #283 backtest bounds, #284 fuses + hardened runtime + stable/nightly quit on `--remote-debugging-port` (user's choice: only `vp run package:test` "Solyx Test" keeps CDP). The user wants the advisories published after the fixes merge and ship; fill in the patched version then. Unverified: real Fubon SDK under hardened runtime, Windows, CI DMG.
+Fixes opened 2026-10-22 as independent PRs against develop, all merged since: #277 shell judge, #278 shared skills, #279 sign-in callback, #280 memory, #281 backup thinning, #282 mandate day (counts the broker's tagged orders the store lost; fails closed as `day-unknown`), #283 backtest bounds, #284 fuses + hardened runtime + stable/nightly quit on `--remote-debugging-port` (user's choice: only `vp run package:test` "Solyx Test" keeps CDP). The user wants the advisories published after the fixes merge and ship; fill in the patched version then (Linear CHI-13; all 8 were still drafts on 2026-11-11). Unverified: real Fubon SDK under hardened runtime, Windows (Linear CHI-28), CI DMG.
 
 **Why:** public issues would disclose unfixed vulns in a shipped app.
-**How to apply:** file security findings as draft advisories, not issues; out of scope still unscanned: renderer, website, other packages. Plugin subagents fail with "synced for another account" when the user switches Claude accounts.
+**How to apply:** file security findings as draft advisories, not issues; out of scope still unscanned: renderer, website, other packages (Linear CHI-14). Plugin subagents fail with "synced for another account" when the user switches Claude accounts.
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-security-scan.md`, type `project`).

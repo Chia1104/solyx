@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -21,12 +21,12 @@ On 2026-10-13 the user asked to rename the `views` skill to `canvas`, have the a
 - **Chat replies draw canvases.** #153 renamed views → canvas (skill, `AgentCanvas`, `agent.canvas.*`). #154 added the kit `agent-canvas.css` (bars, cols, shares, ranges, line: sized by CSS `calc()` from `--v`/`--max`/`--lo`… the markup gives, so the model places nothing), a `# Replies` rule to draw, and playbook lines in deep-analysis, portfolio-review and fund-research. The kit was my addition to their ask.
 - **The research panel draws natively.** #156: valuation range with the last price from `quoteQuery`, and a strip of the forecast record. Report sections stay plain text, since an agent-drawn figure would bypass the quote check.
 
-All three merged on 2026-10-13. The same day the user asked for revenue and EPS trends and approved reading them only while the research tab shows: #157 (open) adds the `fundamentals` IPC channel (`trends(symbol)`, computed in main by core's `statementMetrics` and `revenueTrend`) and three tiles in the panel.
+All three merged on 2026-10-13. The same day the user asked for revenue and EPS trends and approved reading them only while the research tab shows: #157 (merged since) adds the `fundamentals` IPC channel (`trends(symbol)`, computed in main by core's `statementMetrics` and `revenueTrend`) and three tiles in the panel.
 
 Still open:
 
 - How often a real model now draws was not measured: the smoke run used a stand-in model. It needs real conversations on the user's keys.
-- Fundamentals cover Taiwan only (FinMind), so US listings and funds show no tiles. Balance sheets, cash flows and dividends are kept in main but undrawn; so are calibration buckets and stance spells in `Coverage`.
+- Fundamentals cover Taiwan only (FinMind), so US listings and funds show no tiles. Balance sheets, cash flows and dividends are kept in main but undrawn; so are calibration buckets and stance spells in `Coverage`. Since then calibration and stance history are drawn (`calibration-chart.tsx`, `stance-history.tsx` in `apps/webapp/src/modules/research`, #252 and #253), and US statements are read from Longbridge (#367; the tiles on a US listing were not checked in a run).
 - Canvases that run JS (separate custom-protocol origin with its own CSP) stay deferred until static HTML/SVG proves insufficient.
 
 **Why:** the user wants richer output without weakening the renderer's no-network, no-eval boundary, and numbers a reader can trust.

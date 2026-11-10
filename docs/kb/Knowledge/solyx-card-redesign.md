@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -19,7 +19,7 @@ On 2026-10-27 the user asked to drop the hairline-ruled layout for card blocks, 
 Built as a stack:
 
 - **#344 `feat/webapp-sheets`** (into develop): the `sheet` utility (an inside outline and no shadow) and `--radius-sheet`. `Page`/`PageColumn` replace `Sheet`/`RailedColumn` in `components/page.tsx`, and every `Section` is a sheet. The symbol page's chart, book and lower panel are three sheets. `PaneSplitter` sits in the gap a pane keeps. The open listing or settings section is a small sheet. The agent pane's and the overview's tabs are segmented.
-- **#345 `feat/webapp-pane-peek`** (base #344, so retarget it to develop once #344 merges): `app/pane-peek.ts` tracks the pointer with document `pointerover` in capture and in bubble, around React's `onPointerOver`, so the portals of menus the pane opened count as inside. Pressing outside dismisses through capture, since the Lightweight chart stops its events. Escape is caught on the document. The `floating` utility adds a drop shadow in dark mode. `workspace.pin` copy was added.
+- **#345 `feat/webapp-pane-peek`** (base #344): `app/pane-peek.ts` tracks the pointer with document `pointerover` in capture and in bubble, around React's `onPointerOver`, so the portals of menus the pane opened count as inside. Pressing outside dismisses through capture, since the Lightweight chart stops its events. Escape is caught on the document. The `floating` utility adds a drop shadow in dark mode. `workspace.pin` copy was added.
 
 On 2026-10-27, second round, the user asked for the middle to be a card holding the sheets, and for every gap to be one size and aligned. It landed on #344 as commit 5f3cec45 and was merged up into #345:
 
@@ -31,7 +31,7 @@ On 2026-10-27, second round, the user asked for the middle to be a card holding 
 
 The user merged #344 and #345 on 2026-10-27; both are on develop as cc6c3942 and e97fd1fb. The tab track radius fix (`calc(var(--radius) + var(--spacing))`) went in with them.
 
-Third round, 2026-10-27, is PR #347 `feat/webapp-sheet-dividers`, open:
+Third round, 2026-10-27, is PR #347 `feat/webapp-sheet-dividers`, merged since:
 
 - Space parts rows inside sheets and panes: `SettingsList`, the inbox, headlines, themes, calendar lists, orders, fills, holdings and backtest history.
 - A news row takes a rounded inset on focus.
@@ -40,7 +40,7 @@ Third round, 2026-10-27, is PR #347 `feat/webapp-sheet-dividers`, open:
 - `ring-background` and `bg-background/x` knock-outs on sheets are now `surface`.
 - Kept on purpose: pencil dashes, chart axes, a settled forecast's edge, MAGI, HeroUI fields, tables and menus (popover search dividers included), and the markdown blockquote and hr.
 
-Left: retaking the docs' app screenshots, about 200 on R2 at assets.usesolyx.trade in en and zh, light and dark. Wait for #347 to merge, and ask the user before uploading, since it publishes and needs their R2 credentials.
+Left: retaking the docs' app screenshots, about 200 on R2 at assets.usesolyx.trade in en and zh, light and dark (Linear CHI-20). #347 is merged; ask the user before uploading, since it publishes and needs their R2 credentials.
 
 Testing notes: the /tmp/solyx-docs2 kit (main.mjs wrapper, patch.mjs fake Fugle, `vp exec node seed.mjs zh`, shot.sh and secret.sh helpers on CDP 9340) still works. Make the folder "~/Library/Application Support/Solyx Docs Dev" before seeding. `save_secret "API 金鑰"` sets the Fugle key, and the Anthropic key row also needs saving. A covered window does not advance CSS transitions, so `getComputedStyle` visibility reads stale until a screenshot. The identity was removed after this run.
 

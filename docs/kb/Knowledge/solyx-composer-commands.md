@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -20,11 +20,11 @@ Design agreed with the user on 2026-10-10 for the agent composer's command input
 - `/` offers skills, but only those a SKILL.md frontmatter field allows as commands (the user chose that over listing every offered skill). The field is Claude Code's `user-invocable`, true by default; the built-ins `taiwan-market`, `us-market` and `views` set it false. The token is `/<skill-name>` at the start of the message.
 - `@` opens a code wherever no letter or digit precedes it, so `比較@2330和@2454` works and addresses do not.
 - Tokens stay in the message text. Main parses them against the watchlist, holdings and focus, and against the offered skills, then adds `mentions:` and `skill:` lines to `<app_context>`. The prompt tells the agent to `read_skill` a named skill first. IPC `send` stays unchanged.
-- PR #75 (`feat/agent-message-commands`, opened 2026-10-10) holds the grammar in `./wire`, main-side resolution (`message-context.ts`), the context lines, the prompt rule and `user-invocable`.
-- PR #76 (`feat/desktop-composer-commands`, stacked on #75) holds the composer menu (`agent-mentions.ts`, `composer-token.ts`, `composer-menu.tsx`), `messageParts` in `./wire` with `messageTokens` derived from it, the bubble chips (`message-text.tsx`), `AgentSkillInfo.userInvocable` and `/name` labels on the Skills tab. Retarget #76 to `develop` after #75 merges.
+- PR #75 (`feat/agent-message-commands`, opened 2026-10-10, merged) holds the grammar in `./wire`, main-side resolution (`message-context.ts`), the context lines, the prompt rule and `user-invocable`.
+- PR #76 (`feat/desktop-composer-commands`, stacked on #75, merged) holds the composer menu (`agent-mentions.ts`, `composer-token.ts`, `composer-menu.tsx`), `messageParts` in `./wire` with `messageTokens` derived from it, the bubble chips (`message-text.tsx`), `AgentSkillInfo.userInvocable` and `/name` labels on the Skills tab.
 - Not yet verified live: names in suggestions and chips, a real Zhuyin IME, and the Held origin.
 
-Spike on the local branch `spike/composer-autocomplete` (WIP commit e7ba493, not pushed; superseded by #76, safe to delete; files `composer-token.ts`, `composer-menu.tsx`, plus edits in `agent-composer.tsx` and the i18n catalogs). It proved react-aria-components' `Autocomplete` wrapping HeroUI `TextField`/`TextArea` works, under these constraints:
+Spike on the local branch `spike/composer-autocomplete` (WIP commit e7ba493, not pushed; superseded by #76 and deleted since; files `composer-token.ts`, `composer-menu.tsx`, plus edits in `agent-composer.tsx` and the i18n catalogs). It proved react-aria-components' `Autocomplete` wrapping HeroUI `TextField`/`TextArea` works, under these constraints:
 
 - Give the ListBox every candidate and filter through Autocomplete's `filter` prop. Filtering outside it leaves virtual focus on a removed node.
 - Chromium fires `selectionchange` at the textarea without bubbling, so React `onSelect` misses caret moves. Listen on the element.

@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
   - reference
@@ -17,8 +17,8 @@ approved_by: auto-approve
 
 Investigated 2026-10-29 (nightly .140, e7d31697): the app "crashed" because the backend utility process died, the main process showed the backend-stopped dialog and `app.exit(1)` after the click.
 
-- Before PR #384 (opened 2026-10-30) Sentry got nothing from such a crash: `showErrorBox` held the main thread and `app.exit(1)` dropped the queued reports. #384 flushes first, puts `Exit code N · reason · ErrorType` in the dialog and keeps a record per crash in `<userData>/crashes/<iso>.json` (newest 20; error type + frames, never the message). Once a build has it, read that folder first. The user plans a CLI that exports these records for issues.
-- The backend's stdout/stderr is not written anywhere when launched from Finder/Dock. The Sentry MCP here still sees only `bridgefy`/`leadbest`, not Solyx's org (see [[solyx-observability]]).
+- Before PR #384 (opened 2026-10-30, merged) Sentry got nothing from such a crash: `showErrorBox` held the main thread and `app.exit(1)` dropped the queued reports. #384 flushes first, puts `Exit code N · reason · ErrorType` in the dialog and keeps a record per crash in `<userData>/crashes/<iso>.json` (newest 20; error type + frames, never the message). Once a build has it, read that folder first. The user plans a CLI that exports these records for issues (Linear CHI-23).
+- The backend's stdout/stderr is not written anywhere when launched from Finder/Dock. On 2026-10-29 the Sentry MCP here saw only `bridgefy`/`leadbest`, not Solyx's org; since 2026-11-02 it is signed in to org `chia1104`, whose project `solyx-desktop` is this app's (see [[solyx-observability]]).
 - Electron 45 facts (probed 2026-10-30): a utility's `exit` comes ~10 ms before `child-process-gone`; `gone` never fires for a clean exit or a parent kill; `details.name` is the fork's `serviceName`; `exit` code is 1 for exit(1) and the signal number for a crash, while `gone.exitCode` is the raw wait status (256).
 - `pgrep -f '<pattern>'` from a Bash call matches the shell running that very command; pick PIDs by exact executable and `--utility-sub-type=node.mojom.NodeService` instead.
 - Use `/usr/bin/log show`, not `log`: zsh's `log` builtin shadows it ("too many arguments").

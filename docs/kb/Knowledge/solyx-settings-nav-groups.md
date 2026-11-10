@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -14,7 +14,7 @@ approved_by: auto-approve
 
 # 2026-10-27 settings sidebar regrouped into folding groups on branch feat/settings-nav-groups; the grouping and renames were my picks, which the user may change
 
-On 2026-10-27 the user asked for the settings sidebar to be regrouped with folding groups, since the old flat list had fallen behind the features. Their example: the sandbox sat under Skills but also governs strategies' code. They left the design to me. Committed on branch `feat/settings-nav-groups` and opened as PR #343 into develop on 2026-10-27.
+On 2026-10-27 the user asked for the settings sidebar to be regrouped with folding groups, since the old flat list had fallen behind the features. Their example: the sandbox sat under Skills but also governs strategies' code. They left the design to me. Committed on branch `feat/settings-nav-groups` and opened as PR #343 into develop on 2026-10-27, merged since.
 
 These were my picks, so the user may change them:
 

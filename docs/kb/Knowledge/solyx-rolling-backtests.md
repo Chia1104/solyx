@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -18,9 +18,9 @@ approved_by: auto-approve
 
 - Windows in calendar months, not sessions (walk forward uses sessions). The first window starts in the first whole month, and only whole windows run.
 - History headline per mode: `BacktestHeadline = BacktestMetrics | RollingSummary`. The column is JSON, so no migration.
-- A grid × rolling version (each scan cell's share of starts that beat holding) is left for later. Walk forward already scores every cell per training window in `walk.rs` and throws the scores away.
+- A grid × rolling version (each scan cell's share of starts that beat holding) is left for later (Linear CHI-41). Walk forward already scores every cell per training window in `walk.rs` and throws the scores away.
 
-Built as a stack, each PR on the one before. All were open and unmerged on 2026-10-25, fixes merged up the stack rather than rebased:
+Built as a stack, each PR on the one before. All were open and unmerged on 2026-10-25 (all merged into develop since), fixes merged up the stack rather than rebased:
 
 1. #321 `feat/rolling-backtests`: kernel `rolling` and core `rollingBacktest` with a summary (beatHolding, gained, p10/median/p90 spreads, worstDrawdown, thin, apart), and `ENOUGH_TRADES` exported.
    - Each window's run starts at the bar before it, so its rules read the close it is measured from.
@@ -37,7 +37,7 @@ Eval, run the same day at the user's go-ahead (2 repeats, Opus 5.5):
 - Fixes: the fields became `p10`/`p90`, merged up the stack from #321, and skill step 10 was sharpened.
 - `start-luck` alone, run again: 26/26, $0.71.
 
-Docs: PR #325 (`docs/website-rolling`) is stacked on #323.
+Docs: PR #325 (`docs/website-rolling`) was stacked on #323, merged since.
 
 - It adds sections to `backtests` and `data/backtests`, in both locales.
 - Four `backtests/rolling` shots were uploaded to R2 and verified.

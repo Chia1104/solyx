@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -14,13 +14,13 @@ approved_by: auto-approve
 
 # 2026-10-17 apps/website redesign after Cloudflare (stack #204 → #205), shadcn tokens on Base UI, ink blue kept; i18n en-US + zh-TW stacked as #207
 
-On 2026-10-17 the user asked to redesign `apps/website` after cloudflare.com, move it onto shadcn (Base UI styles, `base-<style>` in components.json) and organize the theme on shadcn tokens. Built the same day as stacked PRs #204 (`refactor/website-shadcn`: tokens, shadcn.css, Button/Tabs/Badge via the CLI, ToggleGroup watchlist, plans 001–004) → #205 (`feat/website-redesign`: hero horizon, Sheet rails, plans 005–006); both open, #205 must be retargeted to develop after #204 merges.
+On 2026-10-17 the user asked to redesign `apps/website` after cloudflare.com, move it onto shadcn (Base UI styles, `base-<style>` in components.json) and organize the theme on shadcn tokens. Built the same day as stacked PRs #204 (`refactor/website-shadcn`: tokens, shadcn.css, Button/Tabs/Badge via the CLI, ToggleGroup watchlist, plans 001–004) → #205 (`feat/website-redesign`: hero horizon, Sheet rails, plans 005–006); both merged since.
 
 Decided by the user:
 
 - Keep the ink blue (`#2b45d4` / dark `#8097ff`) as the accent, not Cloudflare's orange. My reason, which they accepted: in Taiwan red means a rising price, so an orange-red brand next to candles reads as "up".
 - The layout direction is approved: an inset rounded hero panel whose bottom edge is the horizon, with the ink sun and a halftone halo above it and the pencil half below. Dashed rails with square handles frame the page. Cells share hairlines, and exactly one cell is filled with ink. Pills are for site chrome; the demo window keeps the app's 6px radius. There is no ink panel at the close.
-- They asked for more motion. On 2026-10-17 /improve-animations produced six plans in `plans/` at the repo root (untracked): 001 tokens, 002 ink wipe on the signed proposal, 003 agent message entrances, 004 shadcn Button press, 005 hero sunrise sequence, 006 headline inking. The user took my recommendation and dropped the order road's ink-line draw. 001–003 run on current code, 004 after the theme refactor, 005–006 inside the redesign PR.
+- They asked for more motion. On 2026-10-17 /improve-animations produced six plans in `plans/` at the repo root (untracked; the folder is gone as of 2026-11-11): 001 tokens, 002 ink wipe on the signed proposal, 003 agent message entrances, 004 shadcn Button press, 005 hero sunrise sequence, 006 headline inking. The user took my recommendation and dropped the order road's ink-line draw. 001–003 run on current code, 004 after the theme refactor, 005–006 inside the redesign PR.
 
 Facts found: `fumadocs-ui` is already `@fumadocs/base-ui`. Fumadocs ships `css/shadcn.css`, which maps `--color-fd-*` onto shadcn variables. The desktop app uses HeroUI, so the website is the only shadcn consumer.
 
@@ -44,12 +44,12 @@ On 2026-10-17 the user asked for i18n ("多個功能 i18n 的部分") without sp
 
 - The locales are the app's, `en-US` and `zh-TW`. English stays at the root paths and zh-TW lives under `/zh-TW`, through TanStack's optional `{-$lang}` plus Fumadocs `hideLocale: "default-locale"`. This is because a static prerender cannot redirect `/docs` to `/en/docs`.
 - The landing page, the demo and every docs page are translated. The copy lives in `@solyx/i18n/website/*.json`, and the demo reuses the `desktop/` catalogs.
-- It went up as PR #207 (`feat/website-i18n`), stacked on #205. The merge order is #204 → #205 → #207.
-- I skipped hreflang, since the site has no production origin yet.
+- It went up as PR #207 (`feat/website-i18n`), stacked on #205. All three are merged.
+- I skipped hreflang, since the site had no production origin then. It has been live on usesolyx.trade since 2026-10-18, and hreflang is still not added (checked 2026-11-11).
 
 Lesson: `perl -pi` without `-CSD -Mutf8` treats a `[。，]` class as bytes and splits CJK characters. In zh-TW MDX, put the punctuation outside the bold (`**數量**。`). CommonMark will not close `**` after `。` when a CJK letter follows it.
 
-On 2026-10-18 the user asked for landing polish plus new not-found and error pages modelled on chia1104.dev's `StatusSheet` (isometric block letters). Opened as PR #214 (`feat/website-landing-polish`, two commits), not merged yet. These were my picks, not the user's:
+On 2026-10-18 the user asked for landing polish plus new not-found and error pages modelled on chia1104.dev's `StatusSheet` (isometric block letters). Opened as PR #214 (`feat/website-landing-polish`, two commits), merged since. These were my picks, not the user's:
 
 - The hero copy and the demo's heading overlap the sun over a radial `scrim`. A dense one read as an eclipse, so it fades out from the centre.
 - The order road's highlight is a single sheen plus ink-coloured titles on the inked steps.

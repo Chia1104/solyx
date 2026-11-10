@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -27,7 +27,7 @@ Decisions the user confirmed:
 - Decisions models audit claims (`ClaimAuditor`), never predict prices; threshold needs an eval script first.
 - Fundamentals source is FinMind (keyless by default, optional token in settings); Taiwan first. TWSE/TPEx open data was rejected because it serves only the latest period. PE is computed in core from candles and trailing EPS.
 
-State as of 2026-10-07: slices 1–5 are built and merged — core research, db, agent tools and skill, chart overlay and research view, FinMind fundamentals with report staleness, and the claim auditor (weak claims are refused below `CLAIM_SUPPORT_LINE` 0.6, measured on Jev only). The FinMind token setting followed in PR #15. Left unbuilt, each reported to the user: ex-dividend handling, PE band and valuation range on the chart, picking past forecasts on the chart, and the optional slice 6 (news challenging a report's falsifiers). Fundamentals are kept in memory for half a day, not in `cache.sqlite`.
+State as of 2026-10-07: slices 1–5 are built and merged — core research, db, agent tools and skill, chart overlay and research view, FinMind fundamentals with report staleness, and the claim auditor (weak claims are refused below `CLAIM_SUPPORT_LINE` 0.6, measured on Jev only). The FinMind token setting followed in PR #15. Left unbuilt, each reported to the user: ex-dividend handling, PE band and valuation range on the chart, picking past forecasts on the chart, and the optional slice 6 (news challenging a report's falsifiers). Fundamentals are kept in memory for half a day, not in `cache.sqlite`. Built since: ex-dividend handling (#117), the valuation range in the research panel (#156), slice 6 as the falsifier watch (#51, #165), and fundamentals kept through `keepFresh` (`packages/backend/src/modules/fundamentals/fundamentals.ts`). A PE band on the chart and picking past forecasts on the chart were not found built.
 
 **Why:** kansoku's weakness is unscored scenario probabilities and an unstructured report; the user wants the forecast visible on the K-line and the report to take part in the forecast.
 
@@ -46,7 +46,7 @@ The user asked whether deep analysis could be improved ("我們現在的深度�
 
 The user chose the six items. The details were my picks and not put to them: 60 moves as the least for a base rate, overlapping spans as the moves, at most three band edges for `get_base_rates`, raw closes on both sides of the stance comparison, substring matching that drops spacing and punctuation for quotes, and exempting quotes the report in force already holds.
 
-Left unbuilt and said so in the PRs: stock dividends, splits and capital reductions; a stance figure across listings; a report's valuation range scored against the price. Not run: the agent in a conversation with any of it, so how often a real model's quotes are refused is unknown, and the cost and time of a deep-analysis run are still unmeasured.
+Left unbuilt and said so in the PRs: stock dividends, splits and capital reductions (built since: #386, Linear CHI-24, and #387, Linear CHI-47); a stance figure across listings; a report's valuation range scored against the price. Not run: the agent in a conversation with any of it, so how often a real model's quotes are refused is unknown, and the cost and time of a deep-analysis run are still unmeasured.
 
 First real run after the merge, 2026-10-13, TW 3231: the agent called `get_base_rates` (475 moves, 26/36/38%), set 30/37/33% and kept four claims, so their quotes passed the provenance check at least once. Whether any call was refused first is in the transcript, which I did not read. Follow-ups on what that run showed are in [[solyx-magi-council]].
 

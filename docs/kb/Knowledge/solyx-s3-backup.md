@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -14,7 +14,7 @@ approved_by: auto-approve
 
 # Automatic backup (PR #179: Windows restore fix, migrations by name) of Solyx's databases and config to the user's own S3 bucket — built 2026-10-13 as stack #159 → #160 → #161 → #163; the user's decisions, what the design became, how it was measured, what is unverified
 
-On 2026-10-13 the user asked me to evaluate an automatic backup to an S3 bucket they configure, pointing at magpie (`/Users/chia1104/Documents/GitHub/magpie`, `internal/davsync` and `internal/backup`) as a reference, then said to go ahead in the direction I had set ("就先照你訂的方向調吧"). Built the same day as four stacked PRs, open and unmerged when I stopped: #159 `feat/backup-bundle` (packages) → #160 `feat/backup-restore` (desktop tab, backup and restore) → #161 `feat/backup-schedule` (schedule and thinning) → #163 `feat/backup-thread` (the work in a worker thread).
+On 2026-10-13 the user asked me to evaluate an automatic backup to an S3 bucket they configure, pointing at magpie (`/Users/chia1104/Documents/GitHub/magpie`, `internal/davsync` and `internal/backup`) as a reference, then said to go ahead in the direction I had set ("就先照你訂的方向調吧"). Built the same day as four stacked PRs (open when I stopped, all merged since): #159 `feat/backup-bundle` (packages) → #160 `feat/backup-restore` (desktop tab, backup and restore) → #161 `feat/backup-schedule` (schedule and thinning) → #163 `feat/backup-thread` (the work in a worker thread).
 
 **The user's decisions (2026-10-13):**
 
@@ -45,14 +45,14 @@ Found on the way, also fixed: a bundle packs no links (tar rewrites an absolute 
 
 **Verified in the built app against a fake S3 server on this computer:** backup, listing, restore with the swap at the next start, the waiting proposal dismissed, the scheduled backup a minute after start, thinning through signed DELETEs that left another installation's objects alone, and that an idle app's five database snapshots stay byte-identical across a scheduler tick.
 
-**Unverified:** a real R2, B2, AWS or MinIO bucket; Windows; the dialog a failed swap shows; whether an older `agent.sqlite` opens after pi-durable's schema moves.
+**Unverified:** a real R2, B2, AWS or MinIO bucket; Windows (Linear CHI-28); the dialog a failed swap shows; whether an older `agent.sqlite` opens after pi-durable's schema moves.
 
 **Found on the way:** the order desk's `onChange` reached `tray` before it was built, so a submission cut off by an exit would have stopped the app from starting; #159 has the desk tell no one of what it settles as it opens.
 
-**Windows restore (2026-10-15).** A Mac backup failed to restore on Windows on the same version with "user.sqlite was written by a newer Solyx". `verifySnapshot` matched `__drizzle_migrations` by hash; drizzle hashes raw `migration.sql`, there is no `.gitattributes`, and the windows-2025 runner checks out CRLF. Fixed in PR #179 (`fix/restore-across-platforms`) by matching on `name`, as drizzle's `getMigrationsToRun` does. The swap at start (`takeRestore`, plain `renameSync`) is still unverified on Windows, where an open handle (e.g. Defender scanning freshly unpacked files) makes rename fail with EPERM/EBUSY.
+**Windows restore (2026-10-15).** A Mac backup failed to restore on Windows on the same version with "user.sqlite was written by a newer Solyx". `verifySnapshot` matched `__drizzle_migrations` by hash; drizzle hashes raw `migration.sql`, there is no `.gitattributes`, and the windows-2025 runner checks out CRLF. Fixed in PR #179 (`fix/restore-across-platforms`) by matching on `name`, as drizzle's `getMigrationsToRun` does. The swap at start (`takeRestore`, plain `renameSync`) is still unverified on Windows, where an open handle (e.g. Defender scanning freshly unpacked files) makes rename fail with EPERM/EBUSY (Linear CHI-28).
 
-**Cross-computer sync (2026-10-15).** The user first asked for sync, picked the handoff model I proposed (one computer active at a time, others standby, pull whole snapshots, keep the losing side as a backup on divergence), then interrupted: the real need was the Windows restore. Sync is not commissioned; the reasons against row-level merging are integer ids, pi-durable's schema, and the paper account and proposals as a ledger. Even today, restoring A onto B leaves both running the same scheduled tasks.
+**Cross-computer sync (2026-10-15).** The user first asked for sync, picked the handoff model I proposed (one computer active at a time, others standby, pull whole snapshots, keep the losing side as a backup on divergence), then interrupted: the real need was the Windows restore. Sync is not commissioned; the reasons against row-level merging are integer ids, pi-durable's schema, and the paper account and proposals as a ledger. Even today, restoring A onto B leaves both running the same scheduled tasks (Linear CHI-32).
 
-**How to apply:** start from the PRs rather than redesigning; the jobs are in `backup-jobs.ts` and run in-process in tests through `createBackupJobs(() => bucket)`, while `tests/backup-threads.test.ts` starts the real TypeScript entry in a thread; the smoke test needs `packages/backup/tests/fixtures/fake-s3.ts` run from a plain node script, with older backups seeded through `createBucket` to see thinning. Related: [[solyx-scheduled-work]], [[solyx-isolated-smoke-run]], [[solyx-stacked-pr-merges]].
+**How to apply:** start from the PRs rather than redesigning; the jobs are in `backup-jobs.ts` (now `packages/backend/src/modules/backup/`) and run in-process in tests through `createBackupJobs(() => bucket)`, while `tests/backup-threads.test.ts` (now `packages/backend/tests/`) starts the real TypeScript entry in a thread; the smoke test needs `packages/backup/tests/fixtures/fake-s3.ts` run from a plain node script, with older backups seeded through `createBucket` to see thinning. Related: [[solyx-scheduled-work]], [[solyx-isolated-smoke-run]], [[solyx-stacked-pr-merges]].
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-s3-backup.md`, type `project`).

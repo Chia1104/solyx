@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -30,10 +30,10 @@ Agreed with the user on 2026-10-23 ("先照建議的繼續吧"):
 
 ## Progress (2026-10-23)
 
-Step 1 is built and open, unmerged:
+Step 1 was built as two PRs (both merged 2026-10-23, see below):
 
 - #290 `refactor(desktop)`: the `Host` port. Includes `chromiumFetch` as a Host member, still main's in-memory session there; `client: { window }` replaces `sender`.
-- #291 `refactor(desktop)`: the backend in a utility process, stacked on #290. Code moved to `src/backend`. Contracts are `utility/host.contract.ts` and `utility/backend.contract.ts`. Main forks Fubon and hands its port over. `chromiumFetch` is Electron's `net.fetch` in the utility process (`credentials: "omit"`, `cache: "no-store"`). Retarget it to develop after #290 merges.
+- #291 `refactor(desktop)`: the backend in a utility process, stacked on #290. Code moved to `src/backend` (to `packages/backend` in #294). Contracts are `utility/host.contract.ts` and `utility/backend.contract.ts`. Main forks Fubon and hands its port over. `chromiumFetch` is Electron's `net.fetch` in the utility process (`credentials: "omit"`, `cache: "no-store"`).
 - #287 is separate, from develop: `tracePropagationTargets: []`.
 - Closed:
   - #285, a home-made AIA chain completion over undici. The user does not want our own chain-fetch code; the statistics portal stays on Chromium's stack (it still omits its intermediate, so Node's fetch fails).
@@ -49,15 +49,15 @@ Probe results:
 
 Smoke technique: a stand-in Fubon SDK (`trade.js` with a CoreSdk Proxy and one stock account) exercised the fork and port handoff without an account.
 
-Later on 2026-10-23 the user asked for the remaining steps as one stack ("github 那邊我可以 stack 在一起 merge"). Built and open, unmerged:
+Later on 2026-10-23 the user asked for the remaining steps as one stack ("github 那邊我可以 stack 在一起 merge"). Built (all merged 2026-10-23, see below):
 
 - #293 `packages/api` → #294 `packages/backend` → #295 `apps/web` → #296 step 5a, edge + pairing.
 - #296 details:
   - Devices are default-deny. A contract opens a procedure with `.meta(forDevices(true))`, and a client interceptor refuses the rest with FORBIDDEN.
   - The device token is stored only as a SHA-256, sealed under the secret `paired-devices`. The WebSocket token rides in the subprotocol; close code 4401 means unpaired.
   - A security hook flagged that a device could create a session in bypass. Fixed in the route: a device creates only `ask` sessions, and its `send` to a bypass session is refused. Auto stays allowed, matching the scheduled runs' "never bypass" line.
-  - Left in the PR for the user: a device can prompt the agent, and the trading mandate may then send that proposal.
-- #297 (5b, stacked on #296) is built and open: passkey per-action signing.
+  - Left in the PR for the user: a device can prompt the agent, and the trading mandate may then send that proposal (Linear CHI-82).
+- #297 (5b, stacked on #296) was built: passkey per-action signing.
   - A passkey is added only within 5 minutes of pairing and is bound to `localhost`.
   - `devices.actionOptions` gives a challenge for one {kind, id}, lasting 2 minutes and usable once. `…Signed` procedures verify the signature before the desk is reached.
   - It changes trading invariant 1; the user reviews that in the PR.
@@ -65,7 +65,7 @@ Later on 2026-10-23 the user asked for the remaining steps as one stack ("github
   - A smoke run with a CDP virtual authenticator (`WebAuthn.addVirtualAuthenticator` on the agent-browser session's page target) submitted a paper order from the browser.
   - `vp dedupe` was needed: two copies of `@peculiar/asn1-schema` broke the ECDSA verification.
 - 2026-10-23: at the user's request, `apps/web` was renamed to `apps/webapp` (`@solyx/webapp`) in #295 (retitled) and merged up into #296 and #297. Directory rename detection left files in new subfolders at the old path; they were moved by hand.
-- Step 6 (`apps/server`) paused for the user, 2026-10-23. A headless server has no "window of this computer", and today devices can't change settings, save secrets or answer the agent, so the server would be unconfigurable. Options I put to the user:
+- Step 6 (`apps/server`) paused for the user, 2026-10-23 (Linear CHI-31). A headless server has no "window of this computer", and today devices can't change settings, save secrets or answer the agent, so the server would be unconfigurable. Options I put to the user:
   - A (my recommendation): the console prints an owner code; the browser that pairs with it gets a window's rights, and its passkey still signs orders. Other browsers are devices.
   - B: every browser is a device; configuration goes through CLI subcommands.
   - C: every browser is the owner.

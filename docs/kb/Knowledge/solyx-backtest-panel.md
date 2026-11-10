@@ -5,7 +5,7 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 tags:
   - imported/claude-code
 approved_at: 2026-11-10
@@ -23,7 +23,7 @@ The user's decisions:
 3. Keep a history list of runs and allow comparing them.
 4. Paired browsers may run backtests (`forDevices(true)`).
 
-The stack was built the same day. Each PR is stacked on the one before, and all are unmerged:
+The stack was built the same day. Each PR was stacked on the one before, and all are merged into develop since:
 
 1. #310 `feat/backtests-api`: core `./strategy-templates` (templates, `gridProblem`, `axisValues` that counts before it allocates), `backtestBars`, history limits in core/candles, the `backtests.*` API, and one kernel shared with the agent. A walk forward runs 100 windows at most. These caps came from a security review.
 2. #311 `feat/backtest-panel`: the run report, holding's curve in core, chart marks, and `backtestBars` trimming to `since`. Before that trim, a one-year run read two years.
@@ -33,7 +33,7 @@ The stack was built the same day. Each PR is stacked on the one before, and all 
 
 Commands: keep the single `/backtest` skill. Add no `/scan` or `/walk-forward` skills, and no app command named `backtest`.
 
-Not done: the backtest eval was not rerun after #314's prompt rule. Ask before running it, since it spends tokens. Smoke runs used faked Fugle bars and a fake Anthropic endpoint, and never a real model or real data.
+Not done: the backtest eval was not rerun after #314's prompt rule (Linear CHI-26). Ask before running it, since it spends tokens. Smoke runs used faked Fugle bars and a fake Anthropic endpoint, and never a real model or real data.
 
 Related: [[solyx-rust-napi-evaluation]], [[solyx-backtest-evaluation]], [[solyx-composer-commands]], [[solyx-isolated-smoke-run]].
 
