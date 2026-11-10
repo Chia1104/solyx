@@ -35,6 +35,7 @@ export default defineConfig({
       "**/routeTree.gen.ts",
       // napi writes the kernel's types from its Rust source.
       "packages/kernel/src/index.d.ts",
+      ".obmem.toml",
     ],
     sortImports: {
       groups: [

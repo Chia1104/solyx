@@ -1,8 +1,16 @@
 {
   "mcpServers": {
     "fallow": {
-      "command": "fallow-mcp",
-      "args": []
+      "args": [],
+      "command": "fallow-mcp"
+    },
+    "obmem": {
+      "args": [
+        "serve",
+        "--project",
+        "${workspaceFolder}"
+      ],
+      "command": "obmem"
     }
   }
 }
