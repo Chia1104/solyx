@@ -1,4 +1,4 @@
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { CodemodeSandbox, loadQuickJSWasm } from "@earendil-works/pi-codemode";
 import type {
   CodemodeResult,

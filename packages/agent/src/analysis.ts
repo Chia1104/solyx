@@ -1,4 +1,4 @@
-import type { JsonValue } from "@earendil-works/chord";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { renderDeclarations } from "@earendil-works/pi-codemode";
 import type { CodemodeTool } from "@earendil-works/pi-codemode";
 import { defineDoc, defineExtension } from "@earendil-works/pi-durable";

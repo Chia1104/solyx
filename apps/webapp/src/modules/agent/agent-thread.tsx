@@ -1,14 +1,11 @@
 import { useLayoutEffect, useRef } from "react";
 
-import { Button, ScrollShadow, Spinner } from "@heroui/react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { ScrollShadow, Spinner } from "@heroui/react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { AgentView } from "@solyx/agent/wire";
 
-import { inWindow } from "../../app/device.ts";
-import { orpc } from "../../app/rpc.ts";
-import { ErrorAlert } from "../../components/error-alert.tsx";
 import { LoadError } from "../../components/load-error.tsx";
 import { LoadingState } from "../../components/loading-state.tsx";
 
@@ -20,40 +17,6 @@ import type { Turn } from "./agent-turns.ts";
 
 // Within this distance of the end, new content keeps the thread scrolled to it.
 const PIN_THRESHOLD = 32;
-
-/** Stands where the run's progress would while it waits for the user to try it again or stop it. */
-function ParkedRun({ sessionId }: { sessionId: string }) {
-  const { t } = useTranslation();
-  const retry = useMutation(orpc.agent.retry.mutationOptions());
-
-  return (
-    <div
-      data-activity
-      role="status"
-      className="flex flex-col items-start gap-2">
-      <p className="text-xs text-muted">{t("agent.parked.description")}</p>
-      {inWindow ? (
-        <Button
-          size="sm"
-          variant="secondary"
-          isPending={retry.isPending}
-          onPress={() => retry.mutate(sessionId)}>
-          {t("agent.parked.retry")}
-        </Button>
-      ) : (
-        <p className="text-xs text-muted">
-          {t("agent.parked.retry-on-computer")}
-        </p>
-      )}
-      {retry.error ? (
-        <ErrorAlert
-          title={t("agent.parked.retry-failed")}
-          description={retry.error.message}
-        />
-      ) : null}
-    </div>
-  );
-}
 
 export function EmptyThread() {
   const { t } = useTranslation();
@@ -98,7 +61,6 @@ function ThreadTurns({
   turns.current = threadTurns(view.items, turns.current);
 
   const last = turns.current.at(-1);
-  const live = view.running && !view.parked;
   const compacting = view.compactions.length > 0;
 
   return (
@@ -108,11 +70,10 @@ function ThreadTurns({
           key={turn.key}
           sessionId={sessionId}
           turn={turn}
-          live={live && turn === last}
+          live={view.running && turn === last}
         />
       ))}
-      {view.parked ? <ParkedRun sessionId={sessionId} /> : null}
-      {compacting || (live && !last) ? (
+      {compacting || (view.running && !last) ? (
         <RunActivity compacting={compacting} />
       ) : null}
     </>
