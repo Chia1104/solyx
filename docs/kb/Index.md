@@ -25,6 +25,7 @@ Open work is tracked in Linear, project P-CHI-2; a note names its issue as "(Lin
 - Agent: [[solyx-magi-council]], [[solyx-agent-autonomy]], [[solyx-agent-setup-tools]], [[solyx-agent-app-gaps]], [[solyx-agent-ollama]], [[solyx-workflow-review]]
 - Conversation: [[solyx-composer-commands]], [[solyx-composer-attachments]], [[solyx-chat-file-upload]], [[solyx-context-usage]], [[solyx-reply-rendering]], [[solyx-agent-work-steps]]
 - Research and news: [[solyx-research-forecast-design]], [[solyx-embedding-evaluation]], [[solyx-local-embedding-model]], [[solyx-news-organization]], [[solyx-news-freshness]]
+- Longbridge: [[a-longbridge-packet-that-does-not-read-is-left-out-and-reported]]
 - Data sources: [[solyx-calendar-sources]], [[solyx-investor-flows]], [[solyx-etf-data-sources]], [[solyx-fund-data-evaluation]], [[solyx-twse-openapi-gaps]], [[solyx-us-stocks-research]], [[solyx-market-split]]
 - Charts: [[solyx-chart-candidates]], [[solyx-chart-d3-tooltips]], [[solyx-sector-rotation]], [[solyx-trend-layers]]
 - Layout: [[solyx-card-redesign]], [[solyx-layout-hairline-headers]], [[solyx-settings-nav-groups]], [[solyx-menu-bar]]
