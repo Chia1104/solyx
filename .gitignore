@@ -12,6 +12,7 @@ dist
 .vitest
 .tanstack
 .void
+.cloudflare
 .void-wrangler.jsonc
 .wrangler
 release
