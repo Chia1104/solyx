@@ -123,6 +123,14 @@ export interface LongbridgeOptions {
   connect?: LongbridgeConnect;
   /** Hears each refusal as too fast, before the request is tried again. */
   onRateLimited?: (error: LongbridgeError) => void;
+  /** Hears each packet of the quote server's that is left out, with why it could not be taken. */
+  onUnreadable?: (cause: unknown, packet: UnreadablePacket) => void;
+}
+
+/** A packet left out: the command its header names, `undefined` where it came too short to name one, and how many bytes it came as. */
+export interface UnreadablePacket {
+  command: number | undefined;
+  bytes: number;
 }
 
 /** One sign-in's Longbridge, its HTTP API and its quote server, under one budget. */
@@ -194,6 +202,7 @@ export function createLongbridge({
   fetch,
   connect = openWebSocket,
   onRateLimited,
+  onUnreadable,
 }: LongbridgeOptions): Longbridge {
   // Its own retries would go around the budget, so a refusal is tried again through it instead.
   const http = ky.create({
@@ -379,16 +388,23 @@ export function createLongbridge({
 
       if (!waiting) return;
 
+      // Read before the request stops waiting, so a refusal that does not read leaves it to end as
+      // an unanswered one does.
+      const refusal =
+        packet.status === ResponseStatus.Success
+          ? undefined
+          : decodeError(packet.body);
+
       pending.delete(packet.id);
       clearTimeout(waiting.timer);
 
-      if (packet.status === ResponseStatus.Success) {
+      if (!refusal) {
         waiting.resolve(packet.body);
 
         return;
       }
 
-      const { code, message } = decodeError(packet.body);
+      const { code, message } = refusal;
 
       waiting.reject(
         new LongbridgeError(
@@ -429,10 +445,8 @@ export function createLongbridge({
       });
     }
 
-    socket.addEventListener("message", ({ data }) => {
-      if (!(data instanceof ArrayBuffer)) return;
-
-      const packet = decodePacket(new Uint8Array(data));
+    function receive(bytes: Uint8Array) {
+      const packet = decodePacket(bytes);
 
       if (packet?.type === PacketType.Response) {
         settle(packet, purposes.get(packet.id) ?? "the request");
@@ -449,6 +463,20 @@ export function createLongbridge({
         for (const listener of pushListeners) {
           listener(packet.command, packet.body);
         }
+      }
+    }
+
+    // What throws out of a socket's listener ends the process, so a packet that does not read, or
+    // that a listener cannot take, is left out and the connection carries on.
+    socket.addEventListener("message", ({ data }) => {
+      if (!(data instanceof ArrayBuffer)) return;
+
+      const bytes = new Uint8Array(data);
+
+      try {
+        receive(bytes);
+      } catch (error) {
+        onUnreadable?.(error, { command: bytes.at(1), bytes: bytes.length });
       }
     });
 
