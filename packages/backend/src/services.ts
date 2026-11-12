@@ -285,6 +285,11 @@ export function createServices(config: ConfigFile, host: Host) {
     accessToken: () => longbridge.accessToken(),
     onRateLimited: (error) =>
       diagnostics.recovered(error, "longbridge.rate-limited"),
+    onUnreadable: (cause, { command, bytes }) =>
+      diagnostics.report(cause, "longbridge.unreadable", {
+        command: String(command),
+        bytes: String(bytes),
+      }),
   });
 
   const marketDataSources = createMarketDataSources({

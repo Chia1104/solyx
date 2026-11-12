@@ -6,8 +6,8 @@ import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import * as z from "zod";
 
 import { LongbridgeError, createLongbridge } from "../src/client.ts";
-import type { LongbridgeWebSocket } from "../src/client.ts";
-import { Command, securitiesRequest } from "../src/wire.ts";
+import type { LongbridgeWebSocket, UnreadablePacket } from "../src/client.ts";
+import { Command, decodeTradePush, securitiesRequest } from "../src/wire.ts";
 
 const TOKEN = "hk_eyJ.test.token";
 
@@ -201,6 +201,7 @@ function setup(
   const passwords: Http[] = [];
   const reads: Http[] = [];
   const rateLimited: LongbridgeError[] = [];
+  const unreadable: UnreadablePacket[] = [];
 
   const longbridge = createLongbridge({
     accessToken: async () => TOKEN,
@@ -232,6 +233,7 @@ function setup(
       return fake;
     },
     onRateLimited: (error) => rateLimited.push(error),
+    onUnreadable: (_cause, packet) => unreadable.push(packet),
   });
 
   const listing = (symbol = "AAPL.US") =>
@@ -240,7 +242,15 @@ function setup(
       securitiesRequest([symbol])
     );
 
-  return { sockets, passwords, reads, rateLimited, longbridge, listing };
+  return {
+    sockets,
+    passwords,
+    reads,
+    rateLimited,
+    unreadable,
+    longbridge,
+    listing,
+  };
 }
 
 const APPLE_INFO = () => ok(staticInfo("AAPL.US", "Apple", "蘋果"));
@@ -739,6 +749,69 @@ describe("pushes and drops", () => {
     await vi.advanceTimersByTimeAsync(30_000 + 15_000);
 
     expect(drops).toHaveBeenCalledTimes(1);
+    expect(sockets[0].closed).toBe(true);
+  });
+});
+
+describe("a packet that does not read", () => {
+  // Field number zero, which no message carries.
+  const GARBLED = new Uint8Array([0]);
+
+  test("a push its listener cannot read is left out, its owner told, and the next one still comes", async () => {
+    const { sockets, unreadable, longbridge, listing } = setup(APPLE_INFO);
+
+    const symbols: string[] = [];
+
+    longbridge.onPush((_command, body) =>
+      symbols.push(decodeTradePush(body).symbol)
+    );
+    await listing();
+
+    const apple = new BinaryWriter()
+      .tag(1, WireType.LengthDelimited)
+      .string("AAPL.US")
+      .finish();
+
+    sockets[0].emit("message", pushPacket(104, GARBLED));
+    sockets[0].emit("message", pushPacket(104, apple));
+
+    expect(symbols).toEqual(["AAPL.US"]);
+    expect(unreadable).toEqual([{ command: 104, bytes: 6 }]);
+    expect(sockets[0].closed).toBe(false);
+
+    await listing();
+    expect(sockets).toHaveLength(1);
+  });
+
+  test("one cut short of its header is left out too", async () => {
+    const { sockets, unreadable, listing } = setup(APPLE_INFO);
+
+    await listing();
+    sockets[0].emit("message", new Uint8Array([0x02, 10, 0]).buffer);
+
+    expect(unreadable).toEqual([{ command: 10, bytes: 3 }]);
+
+    await listing();
+    expect(sockets).toHaveLength(1);
+  });
+
+  test("a refusal that does not read leaves its request to end as an unanswered one does", async () => {
+    fakeClock();
+
+    const { sockets, unreadable, listing } = setup(() => ({
+      status: 7,
+      body: GARBLED,
+    }));
+
+    const lost = listing();
+
+    void lost.catch(noop);
+    await until(() => unreadable.length >= 1);
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    await expect(lost).rejects.toThrow(
+      "Longbridge's quote server stopped answering"
+    );
     expect(sockets[0].closed).toBe(true);
   });
 });
