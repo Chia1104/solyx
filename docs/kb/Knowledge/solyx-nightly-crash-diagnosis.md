@@ -5,11 +5,11 @@ status: active
 author: agent:import
 confidence: medium
 created: 2026-11-10
-updated: 2026-11-11
+updated: 2026-11-13
 tags:
   - imported/claude-code
   - reference
-approved_at: 2026-11-10
+approved_at: 2026-11-13
 approved_by: auto-approve
 ---
 
@@ -25,6 +25,8 @@ Investigated 2026-10-29 (nightly .140, e7d31697): the app "crashed" because the 
 - `launchd` lines say how the main process ended (`exited due to exit(1), ran for Nms`); runningboardd's `termination reported by launchd (0, 0, 256)` is exit(1), not a signal. A signal crash would leave a `Solyx Nightly*.ips` in `~/Library/Logs/DiagnosticReports`.
 - The dialog shows up in the main process's log as iconservices connections plus `makeKeyWindow ... _NSGlassEffectWindow`, which dates the backend's death to within a second.
 - userData is `~/Library/Application Support/Solyx Nightly`; config `~/.solyx-nightly/config.json` (`crashReports.send`, `otlp` empty there). Activity can be timed from `cache.sqlite` `kept_answers.asked_at` and `agent.sqlite` entries' `$.model[0].timestamp` (ms).
+- Reading a crash record (first done 2026-11-13, nightly .143): its frames are lines of the installed bundle, so print them from the build itself with `@electron/asar`'s `extractFile("/Applications/Solyx Nightly.app/Contents/Resources/app.asar", "dist/utility/backend.mjs")` (the package is under `node_modules/.pnpm/@electron+asar@*`). A frame's line and column pick the exact `throw`, which stands in for the message the record leaves out.
+- On 2026-11-13 Sentry held only the main process's events for that crash (`backend.exit`, `'Utility' process exited with 'abnormal-exit'`) and none from the backend with the exception's message, although crash reports were on. So the message is lost unless the app ran from a terminal. That crash and what was done about it are in [[a-longbridge-packet-that-does-not-read-is-left-out-and-reported]].
 - To catch the next one with a stack: quit the app and run `"/Applications/Solyx Nightly.app/Contents/MacOS/Solyx Nightly"` from a terminal; utility processes inherit its stdio.
 
 > Imported from Claude Code memory (`/Users/chia1104/.claude/projects/-Users-chia1104-Documents-GitHub-solyx/memory/solyx-nightly-crash-diagnosis.md`, type `reference`).
