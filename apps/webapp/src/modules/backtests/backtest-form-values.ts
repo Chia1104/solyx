@@ -84,10 +84,8 @@ export function fittingMonths(years: number, months: number) {
 }
 
 /** The years a template reads unless the user picks others, as far as `interval` reaches. */
-export const templateYears = (
-  template: StrategyTemplate,
-  interval: Interval
-) => (isIntraday(interval) ? 1 : STRATEGY_TEMPLATES[template].years);
+export const templateYears = (template: StrategyTemplate, interval: Interval) =>
+  isIntraday(interval) ? 1 : STRATEGY_TEMPLATES[template].years;
 
 /** The rules `text` writes out, or `null` where it is not JSON. */
 function readRules(text: string) {
