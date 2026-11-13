@@ -38,8 +38,14 @@ export function followAgentEvents(queryClient: QueryClient) {
 
       const events = batch.map((update) => update.event);
 
-      // A run renames and reorders conversations as it starts.
-      if (events.some((event) => event.type === AgentEventType.RunStart)) {
+      // A run renames and reorders conversations as it starts, and its answer may have one named.
+      if (
+        events.some(
+          (event) =>
+            event.type === AgentEventType.RunStart ||
+            event.type === AgentEventType.Named
+        )
+      ) {
         void queryClient.invalidateQueries({
           queryKey: orpc.agent.sessions.key(),
         });

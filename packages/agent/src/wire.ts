@@ -557,6 +557,8 @@ export const AgentEventType = {
   CompactionEnd: "compaction:end",
   /** A summary took the place of the older messages in what the model reads. */
   Compacted: "compacted",
+  /** What followed a run's answer is over, which may have named the conversation. */
+  Named: "named",
 } as const;
 
 export type AgentEventType =
@@ -757,6 +759,7 @@ export type AgentWireEvent =
       error: string;
     }
   | { type: typeof AgentEventType.RetryEnd }
+  | { type: typeof AgentEventType.Named }
   | {
       type: typeof AgentEventType.Compacted;
       messageId: string;
@@ -1101,6 +1104,10 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
 
     case AgentEventType.RetryEnd:
       return { ...view, retrying: undefined };
+
+    // A conversation's name is no part of its thread.
+    case AgentEventType.Named:
+      return view;
 
     case AgentEventType.Context:
       return { ...view, context: event.tokens };

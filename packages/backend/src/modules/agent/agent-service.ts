@@ -487,6 +487,7 @@ export function createAgentService(options: AgentServiceOptions) {
     },
     env: shell.env,
     images: createImageThreads(IMAGE_FILES),
+    names: true,
     onEvent,
     onStoreFailure(cause) {
       storeFailed = true;

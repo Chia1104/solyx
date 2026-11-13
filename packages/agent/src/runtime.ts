@@ -56,11 +56,13 @@ import {
 import type { ToolGuards } from "./approval.ts";
 import { AttachmentKind, MAX_TEXT_ATTACHMENT_BYTES } from "./attachment.ts";
 import type { ReadAttachment } from "./attachment.ts";
+import { agentModelRefSchema, agentThinkingSchema } from "./providers.ts";
 import type {
   AgentModelPick,
   AgentModelRef,
   AgentThinking,
 } from "./providers.ts";
+import { TITLE_LENGTH, titleExtension } from "./title.ts";
 import { createToolsetLoader } from "./toolset.ts";
 import type { Toolset } from "./toolset.ts";
 import {
@@ -129,6 +131,11 @@ export interface AgentRuntimeOptions {
   settings?: HarnessSettings;
   /** Scales and re-encodes the images a message carries to fit its model; without it, none rides. */
   images?: ImageProcessor;
+  /**
+   * Has each conversation's model name it once a run of it has answered, a short request of its
+   * own; without it a conversation keeps its first message's first line.
+   */
+  names?: boolean;
 }
 
 /**
@@ -175,38 +182,40 @@ function imageLimits(model: Model<Api>): ImageLimits {
   };
 }
 
-const untunedSessionSchema = z.object({
+const storedSessionSchema = z.object({
   title: z.string(),
   createdAt: z.number(),
   updatedAt: z.number(),
+  // Version 1 had no model of its own, so every conversation ran on the default.
+  model: agentModelRefSchema.nullable().default(null),
+  thinking: agentThinkingSchema.nullable().default(null),
 });
 
 const SessionDoc = defineDoc<{
   title: string;
+  /** The model named it; until then it goes by its first message's first line. */
+  named: boolean;
   createdAt: number;
   updatedAt: number;
   model: AgentModelRef | null;
   thinking: AgentThinking | null;
 }>({
   kind: "solyx.session",
-  version: 2,
+  version: 3,
   scope: "conversation",
   history: "latest",
   fork: "initial",
   initial: () => ({
     title: "",
+    named: false,
     createdAt: 0,
     updatedAt: 0,
     model: null,
     thinking: null,
   }),
   checkpointWhen: () => true,
-  // Version 1 had no model of its own, so every conversation ran on the default.
-  migrate: (value) => ({
-    ...untunedSessionSchema.parse(value),
-    model: null,
-    thinking: null,
-  }),
+  // A conversation from before the model named them keeps the name its user knows it by.
+  migrate: (value) => ({ ...storedSessionSchema.parse(value), named: true }),
 });
 
 /** What started a conversation when the user did not; a fork is the user's own. */
@@ -257,8 +266,6 @@ interface Watch {
   /** Settles once the events of every commit taken so far went out. */
   sent: Promise<void>;
 }
-
-const TITLE_LENGTH = 60;
 
 const BUSY = "The agent is still answering in this conversation";
 
@@ -394,6 +401,13 @@ function endedSlots<Call extends Slot, Key>(
     ...after.filter((slot) => slot.status === "done" && !known.has(key(slot))),
   ];
 }
+
+/**
+ * The run that is still to answer, by the input that started it. A run that answered and only
+ * waits for what follows its answer, such as its conversation being named, is over for the thread.
+ */
+const answering = (live: LiveState | undefined) =>
+  live?.run?.afterRun === undefined ? live?.run?.inputs[0] : undefined;
 
 /** The compactions `after` lists that `before` does not. */
 const compactionsSince = (before: LiveState, after: LiveState) =>
@@ -533,6 +547,36 @@ function sendReply(watch: Watch, emit: Emit, was: LiveState, now: LiveState) {
   sendStreamed(watch, emit, partial.content);
 }
 
+/** Ends the run `was` shows answering, where `now` shows it over; the commit that ends one without an answer says why. */
+function sendRunEnd(watch: Watch, emit: Emit, was: LiveState, now: LiveState) {
+  const before = answering(was);
+
+  if (before === undefined || answering(now) === before) return;
+
+  const failure =
+    now.runFailure === was.runFailure ? undefined : now.runFailure;
+
+  watch.transcriber.runEnd(failure && failureOf(failure)).forEach(emit);
+  watch.streaming = undefined;
+}
+
+/** Starts the run `now` shows answering, and says when what followed the last one's answer is over. */
+function sendRunStart(
+  { transcriber }: Watch,
+  emit: Emit,
+  was: LiveState,
+  now: LiveState
+) {
+  const run = answering(now);
+
+  if (run !== undefined && run !== answering(was)) {
+    transcriber.runStart().forEach(emit);
+  }
+
+  // What followed the answer may have named the conversation.
+  if (was.run?.afterRun && !now.run) emit({ type: AgentEventType.Named });
+}
+
 /**
  * Sends a commit's entries in the order they were appended, and returns the calls they answer. A
  * reply that `streamed` ends the stream begun for it; any other starts as it ends.
@@ -606,6 +650,22 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
   const registry = createRegistry();
   const watches = new Map<ConversationId, Promise<Watch>>();
+
+  if (options.names) {
+    registry.install(
+      titleExtension({
+        unnamed: async (api, context) =>
+          (await api.snapshot(SessionDoc, api.conversationId, context))
+            ?.named === false,
+        async name(tx, id, title) {
+          const session = await tx.doc(SessionDoc, id);
+
+          session.title = title;
+          session.named = true;
+        },
+      })
+    );
+  }
 
   // The watches started so far by session id, for the approvals asked in them.
   const watchesBySession = new Map<string, Watch>();
@@ -830,6 +890,23 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     });
   }
 
+  /** The conversation's run and what it shows now, as last committed; nothing before its first run. */
+  async function liveState(id: ConversationId) {
+    const { harness } = await opened;
+
+    return harness.snapshot(LiveDoc, id, BACKGROUND_CONTEXT);
+  }
+
+  /**
+   * Ends what a run that answered still does, such as naming its conversation, so the conversation
+   * takes what comes next at once; the next answer has it named instead.
+   */
+  async function settle(conversation: Conversation) {
+    const live = await liveState(conversation.id);
+
+    if (live?.run?.afterRun) await conversation.abort(BACKGROUND_CONTEXT);
+  }
+
   /**
    * Admits what starts a run in the commit that stores what the run goes on: the model, the tools
    * and whether it asks before every call. A conversation that turned busy meanwhile refuses it,
@@ -845,6 +922,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
   ) {
     await toolset.load();
     await attach(conversation);
+    await settle(conversation);
 
     const at = Date.now();
 
@@ -963,21 +1041,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
     sendCompactionEnds(emit, was, now);
 
-    // A run is told from the next by the input that started it.
-    const runChanged = now.run?.inputs[0] !== was.run?.inputs[0];
-
-    if (was.run && runChanged) {
-      // The commit that ends a run without an answer says why.
-      const failure =
-        now.runFailure === was.runFailure ? undefined : now.runFailure;
-
-      transcriber.runEnd(failure && failureOf(failure)).forEach(emit);
-      watch.streaming = undefined;
-    }
-
+    sendRunEnd(watch, emit, was, now);
     compactionsSince(was, now).map(compactionStart).forEach(emit);
-
-    if (now.run && runChanged) transcriber.runStart().forEach(emit);
+    sendRunStart(watch, emit, was, now);
   }
 
   /** Starts sending a conversation's events, before any run of it starts. */
@@ -1023,7 +1089,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         const entries =
           newest === undefined ? [] : await history(conversation, newest);
 
-        const running = live.run !== undefined;
+        const running = answering(live) !== undefined;
 
         const transcriber = createTranscriber(
           await approvalsOf(conversation.id)
@@ -1160,18 +1226,29 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         records
           // Conversations a task made, such as a subagent's, belong to their owner.
           .filter((record) => record.owner === undefined)
-          .map(async (record) => ({
-            id: String(record.id),
-            ...((await harness.snapshot(
-              SessionDoc,
-              record.id,
-              BACKGROUND_CONTEXT
-            )) ?? SessionDoc.definition.initial()),
-            approvalMode: (await approvalsOf(record.id)).mode,
-            schedule:
-              (await harness.snapshot(OriginDoc, record.id, BACKGROUND_CONTEXT))
-                ?.schedule ?? null,
-          }))
+          .map(async (record) => {
+            // Who named a conversation is the runtime's own to know.
+            const { named: _named, ...session } =
+              (await harness.snapshot(
+                SessionDoc,
+                record.id,
+                BACKGROUND_CONTEXT
+              )) ?? SessionDoc.definition.initial();
+
+            return {
+              id: String(record.id),
+              ...session,
+              approvalMode: (await approvalsOf(record.id)).mode,
+              schedule:
+                (
+                  await harness.snapshot(
+                    OriginDoc,
+                    record.id,
+                    BACKGROUND_CONTEXT
+                  )
+                )?.schedule ?? null,
+            };
+          })
       );
 
       return sessions.sort(
@@ -1226,13 +1303,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
      * conversation since deleted has none.
      */
     async busy(sessionId: string): Promise<boolean> {
-      const { harness } = await opened;
       const conversation = await findConversation(sessionId);
 
       return (
         conversation !== undefined &&
-        (await harness.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT))
-          ?.run !== undefined
+        answering(await liveState(conversation.id)) !== undefined
       );
     },
 
@@ -1293,18 +1368,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       if (watch) return [...watch.base, ...watch.log];
 
-      const { harness } = await opened;
-
-      const live = await harness.snapshot(
-        LiveDoc,
-        conversation.id,
-        BACKGROUND_CONTEXT
-      );
+      const live = await liveState(conversation.id);
 
       const events = [
         ...createTranscriber(await approvalsOf(conversation.id)).replay(
           await history(conversation),
-          live?.run !== undefined,
+          answering(live) !== undefined,
           live?.runFailure && failureOf(live.runFailure)
         ),
         ...(live?.compactions ?? []).map(compactionStart),
@@ -1324,14 +1393,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
      */
     async send(sessionId: string, turn: AgentTurn): Promise<void> {
       const conversation = await conversationOf(sessionId);
-      const { harness } = await opened;
+      const live = await liveState(conversation.id);
 
-      if (
-        (await harness.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT))
-          ?.run
-      ) {
-        throw new Error(BUSY);
-      }
+      if (answering(live) !== undefined) throw new Error(BUSY);
 
       const choice = await choiceOf(conversation.id);
 
@@ -1386,15 +1450,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const conversation = await conversationOf(sessionId);
       const { harness } = await opened;
 
-      const live = await harness.snapshot(
-        LiveDoc,
-        conversation.id,
-        BACKGROUND_CONTEXT
-      );
+      const live = await liveState(conversation.id);
 
-      if (live?.run) {
-        throw new Error("The agent is still answering in this conversation");
-      }
+      if (answering(live) !== undefined) throw new Error(BUSY);
 
       if (
         (live?.compactions ?? []).some((status) => status.trigger === "manual")
@@ -1405,6 +1463,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const choice = await choiceOf(conversation.id);
 
       await attach(conversation);
+      await settle(conversation);
       await conversation.commit(
         (tx) => configureModel(tx, conversation.id, choice),
         BACKGROUND_CONTEXT
