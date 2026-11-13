@@ -42,7 +42,7 @@ import type {
   ImageLimits,
   ImageProcessor,
 } from "@earendil-works/pi-durable/tools";
-import { Mutex, noop } from "es-toolkit";
+import { noop } from "es-toolkit";
 import * as z from "zod";
 
 import { firstLine } from "@solyx/utils/text";
@@ -652,8 +652,6 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     }
   });
 
-  const sending = new Mutex();
-
   const toolset = createToolsetLoader(registry, () =>
     options.tools({ guard: gate.guard, unasked: gate.unasked })
   );
@@ -1247,34 +1245,37 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         "The agent is still answering in this conversation"
       );
 
-      // One message at a time, so another's turn never resets what this one's run asks.
-      await sending.acquire();
+      if (
+        (await harness.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT))
+          ?.run
+      ) {
+        throw busy;
+      }
 
+      const choice = await choiceOf(conversation.id);
+
+      const attachments = await messageAttachments(
+        turn.attachments ?? [],
+        choice.model
+      );
+
+      await toolset.load();
+
+      await attach(conversation);
+
+      const at = Date.now();
+
+      // The message is admitted in the commit that stores what its run goes on: the model, the
+      // tools and whether it asks before every call. A conversation that turned busy meanwhile
+      // refuses the message, and the commit with it, so a message never changes a run that is not
+      // its own.
       try {
-        if (
-          (await harness.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT))
-            ?.run
-        ) {
-          throw busy;
-        }
-
-        const choice = await choiceOf(conversation.id);
-
-        const attachments = await messageAttachments(
-          turn.attachments ?? [],
-          choice.model
-        );
-
-        await toolset.load();
-
-        await attach(conversation);
-
-        const at = Date.now();
-
-        // The model is the conversation's from here on, so it is set before the input can start a
-        // run. A run that asks every call does so before it starts; one refused as busy only makes
-        // the run under way ask more.
         await conversation.commit(async (tx) => {
+          await conversation.submit(tx, {
+            type: "input",
+            content: userContent(turn.text, turn.context, attachments),
+            whenBusy: "reject",
+          });
           await configureModel(tx, conversation.id, choice);
           await toolset.offer(tx, conversation.id);
 
@@ -1282,33 +1283,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
           session.title ||= firstLine(turn.text, TITLE_LENGTH);
           session.updatedAt = at;
-
-          if (turn.asksEveryCall) {
-            (await tx.doc(AskEveryCallDoc, conversation.id)).asks = true;
-          }
+          (await tx.doc(AskEveryCallDoc, conversation.id)).asks =
+            turn.asksEveryCall ?? false;
         }, BACKGROUND_CONTEXT);
-
-        try {
-          await conversation.submit(
-            {
-              type: "input",
-              content: userContent(turn.text, turn.context, attachments),
-              whenBusy: "reject",
-            },
-            BACKGROUND_CONTEXT
-          );
-        } catch (error) {
-          throw error instanceof ConversationBusy ? busy : error;
-        }
-
-        // Admitted, so no run that asks every call is going, and this one asks as its mode says.
-        if (!turn.asksEveryCall) {
-          await conversation.commit(async (tx) => {
-            (await tx.doc(AskEveryCallDoc, conversation.id)).asks = false;
-          }, BACKGROUND_CONTEXT);
-        }
-      } finally {
-        sending.release();
+      } catch (error) {
+        throw error instanceof ConversationBusy ? busy : error;
       }
     },
 
