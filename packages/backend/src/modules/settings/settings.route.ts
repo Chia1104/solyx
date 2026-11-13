@@ -219,6 +219,9 @@ export const settingsRouter = settings.router({
   setMagiModel: settings.setMagiModel.handler(({ context, input }) => {
     context.config.set(["agent", "magi", input.unit], input.model);
   }),
+  setTitleModel: settings.setTitleModel.handler(({ context, input }) => {
+    context.config.set(["agent", "titleModel"], input);
+  }),
   setAgentAuth: settings.setAgentAuth.handler(({ context, input }) =>
     context.agent.models.setAuth(input.provider, input.auth)
   ),

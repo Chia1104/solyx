@@ -132,10 +132,11 @@ export interface AgentRuntimeOptions {
   /** Scales and re-encodes the images a message carries to fit its model; without it, none rides. */
   images?: ImageProcessor;
   /**
-   * Has each conversation's model name it once a run of it has answered, a short request of its
-   * own; without it a conversation keeps its first message's first line.
+   * Has a model name each conversation once a run of it has answered, a short request of its own:
+   * the model this names, or the conversation's own where it names none. Without it a
+   * conversation keeps its first message's first line.
    */
-  names?: boolean;
+  names?: () => AgentModelRef | null;
 }
 
 /**
@@ -651,6 +652,14 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         unnamed: async (api, context) =>
           (await api.snapshot(SessionDoc, api.conversationId, context))
             ?.named === false,
+        // The host refuses a model it cannot run, as it does one picked for a conversation.
+        async model() {
+          const picked = options.names?.() ?? null;
+
+          return picked
+            ? (await options.model({ model: picked, thinking: null })).model
+            : null;
+        },
         async name(tx, id, title) {
           const session = await tx.doc(SessionDoc, id);
 

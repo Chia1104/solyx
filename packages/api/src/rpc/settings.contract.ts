@@ -164,6 +164,8 @@ export const settingsContract = {
       })
     )
     .output(type<void>()),
+  /** `null` has each conversation named by its own model. */
+  setTitleModel: oc.input(agentModelRefSchema.nullable()).output(type<void>()),
   /** Runs the provider on its key or on its subscription's sign-in. */
   setAgentAuth: oc
     .input(z.object({ provider: agentProviderSchema, auth: agentAuthSchema }))

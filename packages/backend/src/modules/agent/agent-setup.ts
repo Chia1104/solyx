@@ -142,6 +142,10 @@ const stateText = (state: SecretState) =>
 
 const onOff = (on: boolean) => (on ? "on" : "off");
 
+/** A model picked in place of a conversation's own, or that none was. */
+const pickedModel = (model: { provider: string; id: string } | null) =>
+  model ? `${model.provider}/${model.id}` : "the conversation's model";
+
 /** A setting the agent may change once the user allows it. */
 interface Changeable {
   /** What it takes, worded for the model. */
@@ -423,10 +427,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
     );
 
     const magi = Object.entries(models.magi)
-      .map(
-        ([unit, model]) =>
-          `${unit} ${model ? `${model.provider}/${model.id}` : "the conversation's model"}`
-      )
+      .map(([unit, model]) => `${unit} ${pickedModel(model)}`)
       .join(", ");
 
     const secretsStatus = { available: await secrets.available(), states };
@@ -488,6 +489,7 @@ export function createAgentSetup(options: AgentSetupOptions): SetupPort {
           ...(models.decisionMode === DecisionMode.Magi
             ? [entry(["agent", "magi"], magi)]
             : []),
+          entry(["agent", "titleModel"], pickedModel(models.titleModel)),
         ],
       },
       {

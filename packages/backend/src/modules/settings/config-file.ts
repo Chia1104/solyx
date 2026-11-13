@@ -331,6 +331,11 @@ const configSchema = section(
             description:
               "The model each MAGI unit answers on, by provider and model id; a unit without one answers on the conversation's model.",
           }),
+        // Null for each conversation's own model.
+        titleModel: unitModelSchema.meta({
+          description:
+            "The model that names conversations, by provider and model id; without one each conversation is named by its own model.",
+        }),
         memory: z.boolean().catch(true).meta({
           description:
             "Lets the agent read what it kept from earlier conversations and ask to save, rewrite or forget a memory; each change waits for you to allow it.",
@@ -573,6 +578,7 @@ type ConfigPath =
         | "shell"
         | "shellSandbox"
         | "decisionMode"
+        | "titleModel"
         | "memory"
       ),
     ]

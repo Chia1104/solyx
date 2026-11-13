@@ -419,6 +419,8 @@ export interface AgentSettings {
   decisionMode: DecisionMode;
   /** The model each MAGI unit answers on; `null` follows the conversation's. */
   magi: Record<MagiUnit, AgentModelRef | null>;
+  /** The model that names conversations; `null` has each named by its own. */
+  titleModel: AgentModelRef | null;
   /** The chat models of every provider switched on, each provider's in its catalog's order. */
   models: AgentModelOption[];
   /**

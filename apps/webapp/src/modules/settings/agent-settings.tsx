@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { Switch, cn } from "@heroui/react";
 import { BotIcon, Key01Icon, UserCircleIcon } from "@hugeicons/core-free-icons";
@@ -103,6 +103,50 @@ function ProviderTab({
  * with how the provider is paid for (a key, or a subscription where the provider offers one),
  * then the model new conversations start on and how long it thinks.
  */
+type PickerSettings = ComponentProps<typeof AgentModelPicker>["settings"];
+
+/** The model that names conversations: one the user picks, or each conversation's own. */
+function TitleModelRow({ settings }: { settings: PickerSettings }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const label = t("settings.agent.title-model");
+
+  const save = useMutation({
+    mutationFn: async (model: PickerSettings["titleModel"]) => {
+      await client.settings.setTitleModel(model);
+      // Settles on the refetched settings, so the picker never shows the old model.
+      await queryClient.invalidateQueries(
+        { queryKey: orpc.settings.agent.key() },
+        { cancelRefetch: false }
+      );
+    },
+  });
+
+  return (
+    <SettingsRow
+      label={label}
+      description={t("settings.agent.title-model-description")}
+      actions={
+        <AgentModelPicker
+          aria-label={label}
+          settings={settings}
+          pick={{ model: settings.titleModel, thinking: null }}
+          fallback={t("settings.agent.magi.conversation-model")}
+          thinks={false}
+          placement="bottom end"
+          onChange={(next) => save.mutateAsync(next.model)}
+        />
+      }>
+      {save.error ? (
+        <ErrorAlert
+          title={t("settings.save-failed")}
+          description={save.error.message}
+        />
+      ) : null}
+    </SettingsRow>
+  );
+}
+
 export function AgentSettings() {
   const { t } = useTranslation();
   const providersLabelId = useId();
@@ -447,6 +491,7 @@ export function AgentSettings() {
                 />
               }
             />
+            <TitleModelRow settings={settings.data} />
             <SettingsRow
               label={decisionModeLabel}
               description={t("settings.agent.decision-mode-description")}

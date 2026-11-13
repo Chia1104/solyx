@@ -1,5 +1,6 @@
 import type { Context } from "@earendil-works/chord/context";
 import { contentText } from "@earendil-works/pi-ai";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import {
   GenerationTask,
   defineExtension,
@@ -41,6 +42,11 @@ const WRAPPING = /^["'“‘「『《]+|["'”’」』》。.!?！？]+$/g;
 export interface TitleKeeper {
   /** Whether the conversation still goes by its first message's first line. */
   unnamed(api: HookApi, context: Context): Promise<boolean>;
+  /**
+   * The model that names conversations where the user picked one, and `null` where each
+   * conversation's own does. Rejects where the one picked cannot run.
+   */
+  model(): Promise<Model<Api> | null>;
   /** Keeps `title` as the conversation's name, for good. */
   name(tx: Tx, id: ConversationId, title: string): Promise<void>;
 }
@@ -49,8 +55,9 @@ export interface TitleKeeper {
 type TitleInput = Record<"first" | "answer", number>;
 
 /**
- * Has the conversation's model name a conversation once a run of it has answered, through a task
- * pi-durable starts after the answer and carries across a restart. The run has answered by then,
+ * Has a model name a conversation once a run of it has answered, the one the user picked for
+ * names or else the conversation's own, through a task pi-durable starts after the answer and
+ * carries across a restart. The run has answered by then,
  * so the task only keeps the conversation busy until the name is kept; a provider that fails
  * leaves the conversation its first line, and its next answer asks again.
  */
@@ -78,7 +85,14 @@ export function titleExtension(keeper: TitleKeeper): Extension {
         const asked = await read(task.input.first);
         const answered = await read(task.input.answer);
         const ref = (await runtime.agent(context)).model;
-        const model = ref && runtime.models.getModel(ref.provider, ref.modelId);
+
+        // A model picked for names that cannot run names nothing: no other names in its place.
+        const picked = await keeper.model().catch(() => undefined);
+
+        const model =
+          picked === null
+            ? ref && runtime.models.getModel(ref.provider, ref.modelId)
+            : picked;
 
         let title = "";
 
