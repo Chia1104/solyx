@@ -269,12 +269,6 @@ interface Watch {
 
 const BUSY = "The agent is still answering in this conversation";
 
-/**
- * The tool rounds one run of a scheduled task takes at most. Nobody watches such a run, so one
- * that keeps calling tools would spend the user's model budget until they looked.
- */
-const SCHEDULED_TURNS = 50;
-
 const PAGE = 200;
 
 /** Every item of a paged scan, in the order its pages list them. */
@@ -1258,11 +1252,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
     /**
      * Starts a conversation on what was picked for it, in the same commit that makes it.
-     * `schedule` names the scheduled task that starts it, which only the host can say.
+     * `schedule` names the scheduled task that starts it, and `maxTurns` the tool rounds a run of
+     * it takes at most, both of which only the host can say.
      */
     async create(
       setup = DEFAULT_SETUP,
-      schedule: SessionSchedule | null = null
+      schedule: SessionSchedule | null = null,
+      maxTurns?: number
     ): Promise<AgentSession> {
       const { harness } = await opened;
       const at = Date.now();
@@ -1279,10 +1275,9 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
             session.thinking = setup.thinking;
             (await tx.doc(ApprovalDoc, id)).mode = setup.approvalMode;
 
-            if (schedule) {
-              (await tx.doc(OriginDoc, id)).schedule = schedule;
-              await configure(tx, id, { maxTurns: SCHEDULED_TURNS });
-            }
+            if (schedule) (await tx.doc(OriginDoc, id)).schedule = schedule;
+
+            if (maxTurns !== undefined) await configure(tx, id, { maxTurns });
           },
         },
         BACKGROUND_CONTEXT

@@ -742,7 +742,7 @@
       "interrupted": "Solyx closed before the agent finished.",
       "store-failed": "Solyx could not save this conversation, so the agent stopped here. It carries on once Solyx restarts.",
       "summary-failed": "Couldn't summarize earlier messages: {{error}}",
-      "turn-limit": "The agent reached the limit of steps a scheduled run takes and stopped here."
+      "turn-limit": "The agent reached this task's limit of steps and stopped here."
     },
     "tools": {
       "get_market_status": "Checked market status",
@@ -2256,6 +2256,9 @@
         "ask": "The run rests at the first such call until you answer it in its conversation.",
         "auto": "Reads pages the run found, runs shell commands and strategies judged harmless and adds new notes to memory; everything else waits for you."
       },
+      "max-turns": "Most steps a run takes",
+      "max-turns-description": "A run that reaches it stops there, and you can continue it. Lower it for a model that repeats its calls.",
+      "max-turns-range": "Enter a whole number from 1 to {{max}}",
       "required": "Fill this in",
       "too-long": "Keep it within {{count}} characters",
       "secret": "This looks like a key, token or ID number, which a task never holds",

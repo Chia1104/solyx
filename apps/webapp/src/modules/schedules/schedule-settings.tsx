@@ -8,6 +8,7 @@ import {
   Input,
   Label,
   Modal,
+  NumberField,
   Switch,
   TextArea,
   TextField,
@@ -27,6 +28,8 @@ import type { ScheduledTaskView, TaskDraft } from "@solyx/api/schedules";
 import { Locale } from "@solyx/api/settings";
 import { holdsSecret } from "@solyx/core/memory";
 import {
+  DEFAULT_SCHEDULE_TURNS,
+  MAX_SCHEDULE_TURNS,
   SCHEDULE_NAME_LENGTH,
   SCHEDULE_PROMPT_LENGTH,
   ScheduleApproval,
@@ -74,6 +77,8 @@ const APPROVAL_ICON: Record<ScheduleApproval, IconSvgElement> = {
   [ScheduleApproval.Auto]: SecurityCheckIcon,
 };
 
+const RANGE = { max: MAX_SCHEDULE_TURNS };
+
 /** A task as its form holds it; rebuilt per language so field errors come out localized. */
 function useTaskFormSchema() {
   const { t } = useTranslation();
@@ -94,6 +99,13 @@ function useTaskFormSchema() {
           { error: t("settings.schedules.secret") }
         ),
         approval: z.enum(ScheduleApproval),
+        // An emptied number field holds NaN, which is no integer.
+        maxTurns: z
+          .int({ error: t("settings.schedules.max-turns-range", RANGE) })
+          .min(1, { error: t("settings.schedules.max-turns-range", RANGE) })
+          .max(MAX_SCHEDULE_TURNS, {
+            error: t("settings.schedules.max-turns-range", RANGE),
+          }),
         ...timingFieldSchemas(t),
       })
       .superRefine(checkScope(t));
@@ -107,6 +119,7 @@ const NEW_TASK: TaskForm = {
   name: "",
   prompt: "",
   approval: ScheduleApproval.Ask,
+  maxTurns: DEFAULT_SCHEDULE_TURNS,
 };
 
 const formOf = ({
@@ -114,11 +127,13 @@ const formOf = ({
   prompt,
   schedule,
   approval,
+  maxTurns,
 }: ScheduledTaskDraft): TaskForm => ({
   ...NEW_TASK,
   name,
   prompt,
   approval,
+  maxTurns,
   ...timingOf(schedule),
 });
 
@@ -134,6 +149,7 @@ function draftOf(form: TaskForm, enabled: boolean): TaskDraft {
     timeZone: currentTimeZone(),
     locale: currentLocale(),
     approval: form.approval,
+    maxTurns: form.maxTurns,
     enabled,
   };
 }
@@ -235,6 +251,29 @@ function TaskEditor({
               value={field.value}
               onChange={field.onChange}
             />
+          )}
+        />
+        <Controller
+          control={form.control}
+          name="maxTurns"
+          render={({ field, fieldState }) => (
+            <NumberField
+              isRequired
+              isInvalid={fieldState.invalid}
+              minValue={1}
+              maxValue={MAX_SCHEDULE_TURNS}
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}>
+              <Label>{t("settings.schedules.max-turns")}</Label>
+              <NumberField.Group>
+                <NumberField.Input className="tabular-nums" />
+              </NumberField.Group>
+              <Description>
+                {t("settings.schedules.max-turns-description")}
+              </Description>
+              <FieldError>{fieldState.error?.message}</FieldError>
+            </NumberField>
           )}
         />
         {error ? (

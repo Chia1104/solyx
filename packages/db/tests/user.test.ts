@@ -464,6 +464,7 @@ describe("schedule store", () => {
     timeZone: "Asia/Taipei",
     locale: "zh-TW",
     approval: ScheduleApproval.Auto,
+    maxTurns: 50,
     enabled: true,
     createdAt: 1_790_000_000_000,
     updatedAt: 1_790_000_000_000,

@@ -32,7 +32,11 @@ Under **Settings → Schedules → Scheduled tasks**, or by asking the agent, gi
   </Tab>
 </Tabs>
 
-**Calls that must ask** picks **Wait for me**, the default, or **Allow what is judged harmless**. A scheduled run never runs in **Don't ask**. A task's runs are marked **Scheduled** among your conversations, and **Open its conversation** shows the latest. **Run now** runs one at once.
+**Calls that must ask** picks **Wait for me**, the default, or **Allow what is judged harmless**. A scheduled run never runs in **Don't ask**.
+
+**Most steps a run takes** bounds how many rounds of tool calls one run makes, 50 unless you change it. A run that reaches it stops there, and **Continue** in its conversation gives it as many again. Lower it for a model that keeps repeating its calls.
+
+A task's runs are marked **Scheduled** among your conversations, and **Open its conversation** shows the latest. **Run now** runs one at once.
 
 The `watchlist-upkeep` skill makes a good task: a round over the watchlist ending in a briefing.
 

@@ -185,10 +185,27 @@ test("a task is kept on the user's clock and runs its calls as auto unless told 
       timeZone: "Asia/Taipei",
       locale: "zh-TW",
       approval: ScheduleApproval.Auto,
+      maxTurns: 50,
       enabled: true,
     },
   ]);
   expect(asked).toHaveBeenCalledTimes(2);
+});
+
+test("a task takes the tool rounds its call sets, 50 unless it says, and none past what a task may", async () => {
+  const { run, kept, asked } = setup();
+
+  await run(AgentToolName.SaveTask, { ...BRIEF, maxTurns: 12 });
+
+  expect([...kept.values()]).toMatchObject([{ maxTurns: 12 }]);
+
+  await expect(
+    run(AgentToolName.SaveTask, { ...BRIEF, maxTurns: 501 })
+  ).rejects.toThrow();
+  await expect(
+    run(AgentToolName.SaveTask, { ...BRIEF, maxTurns: 0 })
+  ).rejects.toThrow();
+  expect(asked).toHaveBeenCalledOnce();
 });
 
 test("a task is written again under its id, switched off or set to wait on the changes it names", async () => {
@@ -209,6 +226,7 @@ test("a task is written again under its id, switched off or set to wait on the c
       listings: [TSMC],
       themes: ["outbreak"],
       approval: ScheduleApproval.Ask,
+      maxTurns: 50,
       enabled: false,
     })
   ).toMatchObject({
@@ -227,6 +245,7 @@ test("a task is written again under its id, switched off or set to wait on the c
         },
       },
       approval: ScheduleApproval.Ask,
+      maxTurns: 50,
       enabled: false,
     },
   ]);
@@ -349,7 +368,7 @@ test("tasks read with when they run, how their last run went and what they send"
 
   expect(text.split("\n")).toEqual([
     `## Morning brief (id ${id})`,
-    "Runs at 08:30 Asia/Taipei, on days TW trades; calls that must ask: auto; switched on.",
+    "Runs at 08:30 Asia/Taipei, on days TW trades; calls that must ask: auto; at most 50 tool rounds a run; switched on.",
     "Last ran 2026-10-07 08:30.",
     "Next run 2026-10-08 08:30 Asia/Taipei.",
     "Sends:",
@@ -407,6 +426,7 @@ test("a task's runs read newest first, each with where it stands and the reply i
     timeZone: "Asia/Taipei",
     locale: "zh-TW",
     approval: ScheduleApproval.Auto,
+    maxTurns: 50,
     enabled: true,
     id: "brief",
     createdAt: AT,
@@ -474,6 +494,7 @@ test("a run's reply reads without the canvases it drew", async () => {
     timeZone: "Asia/Taipei",
     locale: "zh-TW",
     approval: ScheduleApproval.Auto,
+    maxTurns: 50,
     enabled: true,
     id: "brief",
     createdAt: AT,
@@ -510,6 +531,7 @@ test("a scheduled run reads the runs before it without naming its task", async (
     timeZone: "Asia/Taipei",
     locale: "zh-TW",
     approval: ScheduleApproval.Auto,
+    maxTurns: 50,
     enabled: true,
   });
 
@@ -537,6 +559,7 @@ test("runs that cannot be read say why", async () => {
     timeZone: "Asia/Taipei",
     locale: "zh-TW",
     approval: ScheduleApproval.Auto,
+    maxTurns: 50,
     enabled: true,
   });
 
@@ -552,6 +575,7 @@ const DRAFT: ScheduledTaskDraft = {
   timeZone: "Asia/Taipei",
   locale: "zh-TW",
   approval: ScheduleApproval.Auto,
+  maxTurns: 50,
   enabled: true,
 };
 

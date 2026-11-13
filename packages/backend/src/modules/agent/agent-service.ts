@@ -740,11 +740,18 @@ export function createAgentService(options: AgentServiceOptions) {
         name,
         prompt,
         approval,
+        maxTurns,
         locale,
         timeZone,
       }: Pick<
         ScheduledTask,
-        "id" | "name" | "prompt" | "approval" | "locale" | "timeZone"
+        | "id"
+        | "name"
+        | "prompt"
+        | "approval"
+        | "maxTurns"
+        | "locale"
+        | "timeZone"
       >,
       changes: readonly Change[] = []
     ): Promise<AgentSession> {
@@ -754,7 +761,8 @@ export function createAgentService(options: AgentServiceOptions) {
           thinking: null,
           approvalMode: UNATTENDED_MODE[approval],
         },
-        { id, name }
+        { id, name },
+        maxTurns
       );
 
       try {
