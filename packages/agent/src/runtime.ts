@@ -484,6 +484,34 @@ function sendCallStarts(
   }
 }
 
+/** Says a request to the model waits to be sent again, with why it failed, and that the wait is over. */
+function sendRetry(emit: Emit, was: LiveState, now: LiveState) {
+  const retry = now.generation?.retry;
+  const before = was.generation?.retry;
+
+  if (retry && retry !== before) {
+    emit({ type: AgentEventType.RetryWait, error: retry.error });
+  } else if (!retry && before) {
+    emit({ type: AgentEventType.RetryEnd });
+  }
+}
+
+/** Ends the compactions `now` no longer lists; the commit that ends one without a summary says why. */
+function sendCompactionEnds(emit: Emit, was: LiveState, now: LiveState) {
+  const failed =
+    now.compactionFailure === was.compactionFailure
+      ? undefined
+      : now.compactionFailure;
+
+  for (const { taskId } of compactionsSince(now, was)) {
+    emit({
+      type: AgentEventType.CompactionEnd,
+      id: String(taskId),
+      error: failed?.taskId === taskId ? failed.error : undefined,
+    });
+  }
+}
+
 /** Sends the reply `now` shows streaming: its start where `was` showed none, then what is new of it. */
 function sendReply(watch: Watch, emit: Emit, was: LiveState, now: LiveState) {
   const partial = now.generation?.message;
@@ -853,6 +881,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     }
 
     sendCallStarts(watch, emit, was, now, next);
+    sendRetry(emit, was, now);
     sendReply(watch, emit, was, now);
 
     // Children before the calls that made them: the list holds parents first.
@@ -884,9 +913,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         .forEach(emit);
     }
 
-    for (const { taskId } of compactionsSince(now, was)) {
-      emit({ type: AgentEventType.CompactionEnd, id: String(taskId) });
-    }
+    sendCompactionEnds(emit, was, now);
 
     // A run is told from the next by the input that started it.
     const runChanged = now.run?.inputs[0] !== was.run?.inputs[0];
@@ -963,6 +990,13 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         const partial = live.generation?.message;
 
         base.push(...(live.compactions ?? []).map(compactionStart));
+
+        if (live.generation?.retry) {
+          base.push({
+            type: AgentEventType.RetryWait,
+            error: live.generation.retry.error,
+          });
+        }
 
         const context = await contextTokens(conversation);
 

@@ -547,6 +547,10 @@ export const AgentEventType = {
   ApprovalRequest: "approval:request",
   ApprovalResolved: "approval:resolved",
   RunEnd: "run:end",
+  /** A request to the model failed and waits to be sent again. */
+  RetryWait: "retry:wait",
+  /** The wait is over: the request is sent again, or its run ended. */
+  RetryEnd: "retry:end",
   /** What the conversation's next request holds, which changes with every message. */
   Context: "context",
   CompactionStart: "compaction:start",
@@ -739,7 +743,18 @@ export type AgentWireEvent =
       /** The user asked for it; otherwise the context grew past its threshold. */
       manual: boolean;
     }
-  | { type: typeof AgentEventType.CompactionEnd; id: string }
+  | {
+      type: typeof AgentEventType.CompactionEnd;
+      id: string;
+      /** Why it wrote no summary, where it failed. */
+      error?: string;
+    }
+  | {
+      type: typeof AgentEventType.RetryWait;
+      /** The provider's message for the request that failed. */
+      error: string;
+    }
+  | { type: typeof AgentEventType.RetryEnd }
   | {
       type: typeof AgentEventType.Compacted;
       messageId: string;
@@ -768,6 +783,7 @@ export const AgentItemKind = {
   Tool: "tool",
   Notice: "notice",
   Compaction: "compaction",
+  CompactionFailure: "compaction-failure",
 } as const;
 
 export type AgentItemKind = (typeof AgentItemKind)[keyof typeof AgentItemKind];
@@ -816,11 +832,18 @@ export interface CompactionView {
   at: number;
 }
 
+/** A summary the app started on its own that could not be written, so the messages stay as they are. */
+export interface CompactionFailureView {
+  kind: typeof AgentItemKind.CompactionFailure;
+  error: string;
+}
+
 export type AgentViewItem =
   | MessageView
   | ToolCallView
   | NoticeView
-  | CompactionView;
+  | CompactionView
+  | CompactionFailureView;
 
 export interface AgentView {
   items: AgentViewItem[];
@@ -829,6 +852,8 @@ export interface AgentView {
   context?: number;
   /** Compactions under way. */
   compactions: { id: string; manual: boolean }[];
+  /** Why the model's request failed, while it waits to be sent again. */
+  retrying?: string;
 }
 
 export const emptyAgentView = (): AgentView => ({
@@ -836,6 +861,28 @@ export const emptyAgentView = (): AgentView => ({
   running: false,
   compactions: [],
 });
+
+/**
+ * The view once a compaction ended. One the app started says why it failed in the thread; whoever
+ * asked for one is told where they asked.
+ */
+function endCompaction(
+  view: AgentView,
+  items: AgentViewItem[],
+  event: Extract<AgentWireEvent, { type: typeof AgentEventType.CompactionEnd }>
+): AgentView {
+  const ended = view.compactions.find((each) => each.id === event.id);
+
+  if (event.error !== undefined && !ended?.manual) {
+    items.push({ kind: AgentItemKind.CompactionFailure, error: event.error });
+  }
+
+  return {
+    ...view,
+    items,
+    compactions: view.compactions.filter((each) => each.id !== event.id),
+  };
+}
 
 /** Pure: the same events in the same order always give the same view. */
 export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
@@ -1044,8 +1091,14 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
         });
       }
 
-      return { ...view, items: settled, running: false };
+      return { ...view, items: settled, running: false, retrying: undefined };
     }
+
+    case AgentEventType.RetryWait:
+      return { ...view, retrying: event.error };
+
+    case AgentEventType.RetryEnd:
+      return { ...view, retrying: undefined };
 
     case AgentEventType.Context:
       return { ...view, context: event.tokens };
@@ -1062,10 +1115,7 @@ export function applyEvent(view: AgentView, event: AgentWireEvent): AgentView {
           };
 
     case AgentEventType.CompactionEnd:
-      return {
-        ...view,
-        compactions: view.compactions.filter((each) => each.id !== event.id),
-      };
+      return endCompaction(view, items, event);
 
     case AgentEventType.Compacted:
       if (
