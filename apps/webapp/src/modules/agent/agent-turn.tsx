@@ -41,6 +41,17 @@ function Notice({ notice }: { notice: NoticeView }) {
   );
 }
 
+/** A summary the app started on its own that could not be written. */
+function SummaryFailure({ error }: { error: string }) {
+  const { t } = useTranslation();
+
+  return (
+    <p className="text-xs text-muted">
+      {t("agent.notices.summary-failed", { error })}
+    </p>
+  );
+}
+
 const waits = (step: Step) =>
   step.kind === StepKind.Tool &&
   step.tool.status === ToolCallStatus.AwaitingApproval;
@@ -223,13 +234,17 @@ export const AgentTurn = memo(function AgentTurn({
         />
       ))}
       {turn.answer ? <AssistantReply message={turn.answer} /> : null}
-      {turn.after.map((item, index) =>
-        item.kind === AgentItemKind.Compaction ? (
-          <CompactionDivider key={item.messageId} compaction={item} />
+      {turn.after.map((item, index) => {
+        if (item.kind === AgentItemKind.Compaction) {
+          return <CompactionDivider key={item.messageId} compaction={item} />;
+        }
+
+        return item.kind === AgentItemKind.CompactionFailure ? (
+          <SummaryFailure key={`summary-${index}`} error={item.error} />
         ) : (
           <Notice key={`notice-${index}`} notice={item} />
-        )
-      )}
+        );
+      })}
     </>
   );
 });

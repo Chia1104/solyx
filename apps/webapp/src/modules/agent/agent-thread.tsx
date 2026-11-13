@@ -48,6 +48,17 @@ function RunActivity({ compacting }: { compacting: boolean }) {
   );
 }
 
+/** Why the model's request failed, while the run waits to send it again. */
+function RetryNotice({ error }: { error: string }) {
+  const { t } = useTranslation();
+
+  return (
+    <p role="status" className="text-xs text-muted">
+      {t("agent.retrying", { error })}
+    </p>
+  );
+}
+
 /** The conversation's turns, the one the run works on live, and what else the run is doing. */
 function ThreadTurns({
   sessionId,
@@ -73,6 +84,9 @@ function ThreadTurns({
           live={view.running && turn === last}
         />
       ))}
+      {view.retrying === undefined ? null : (
+        <RetryNotice error={view.retrying} />
+      )}
       {compacting || (view.running && !last) ? (
         <RunActivity compacting={compacting} />
       ) : null}

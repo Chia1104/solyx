@@ -3,6 +3,7 @@ import { expect, test } from "vite-plus/test";
 import {
   AgentCommand,
   AgentEventType,
+  AgentItemKind,
   RunEndReason,
   ToolCallStatus,
   MessagePartKind,
@@ -198,4 +199,18 @@ test("a leading /compact is the app's command rather than a skill, and what foll
   });
   expect(messageCommand("/compacted")).toBeUndefined();
   expect(messageCommand("compact")).toBeUndefined();
+});
+
+test("a summary the app started that fails says why in the thread, and one the user asked for does not", () => {
+  const failed = (manual: boolean) =>
+    foldEvents([
+      { type: AgentEventType.CompactionStart, id: "7", manual },
+      { type: AgentEventType.CompactionEnd, id: "7", error: "overloaded" },
+    ]);
+
+  expect(failed(false)).toMatchObject({
+    compactions: [],
+    items: [{ kind: AgentItemKind.CompactionFailure, error: "overloaded" }],
+  });
+  expect(failed(true)).toMatchObject({ compactions: [], items: [] });
 });

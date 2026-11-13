@@ -471,6 +471,50 @@ test("an image is refused for a model that reads none, and nothing of the messag
   await runtime.close();
 });
 
+test("a request the provider fails for a moment is said to wait, then is sent again and answered", async () => {
+  const { faux, events, runtime, ended } = setup({
+    settings: { retry: { baseDelayMs: 1 } },
+  });
+
+  const { id } = await runtime.create();
+
+  faux.setResponses([
+    fauxAssistantMessage("", {
+      stopReason: "error",
+      errorMessage: "529 overloaded",
+    }),
+    fauxAssistantMessage("Back."),
+  ]);
+
+  await runtime.send(id, { text: "hi", context: "" });
+  await ended();
+
+  const wait = events.findIndex(
+    (event) => event.type === AgentEventType.RetryWait
+  );
+
+  const over = events.findIndex(
+    (event) => event.type === AgentEventType.RetryEnd
+  );
+
+  expect(events[wait]).toEqual({
+    type: AgentEventType.RetryWait,
+    error: "529 overloaded",
+  });
+  expect(foldEvents(events.slice(0, wait + 1)).retrying).toBe("529 overloaded");
+  expect(over).toBeGreaterThan(wait);
+  expect(foldEvents(events)).toMatchObject({
+    running: false,
+    retrying: undefined,
+  });
+  expect(foldEvents(events).items.at(-1)).toMatchObject({
+    kind: AgentItemKind.Assistant,
+    text: "Back.",
+  });
+
+  await runtime.close();
+});
+
 test("a provider error ends the run with its message", async () => {
   const { faux, events, runtime, ended } = setup();
   const { id } = await runtime.create();
@@ -1365,6 +1409,46 @@ test("compacting by hand places a summary the thread shows, and the context shri
   expect(after.compactions).toEqual([]);
   expect(after.context).toBeLessThan(before);
   expect(foldEvents(await runtime.transcript(id))).toEqual(after);
+});
+
+test("a summary that fails ends with why, which whoever asked for it is told", async () => {
+  const { faux, events, runtime, ended } = setup({
+    settings: { compaction: { keepRecentTokens: 1 }, retry: { maxRetries: 0 } },
+  });
+
+  const { id } = await runtime.create();
+  const long = "word ".repeat(1500);
+
+  faux.setResponses([
+    fauxAssistantMessage(`one ${long}`),
+    fauxAssistantMessage(`two ${long}`),
+    fauxAssistantMessage("", {
+      stopReason: "error",
+      errorMessage: "invalid x-api-key",
+    }),
+  ]);
+  await runtime.send(id, { text: "first", context: "" });
+  await ended(1);
+  await runtime.send(id, { text: "second", context: "" });
+  await ended(2);
+
+  await expect(runtime.compact(id)).rejects.toThrow("invalid x-api-key");
+  await vi.waitFor(() =>
+    expect(events).toContainEqual({
+      type: AgentEventType.CompactionEnd,
+      id: expect.any(String),
+      error: expect.stringContaining("invalid x-api-key"),
+    })
+  );
+
+  // The user asked for this one, so the composer says it failed, not the thread.
+  expect(
+    foldEvents(events).items.some(
+      (item) => item.kind === AgentItemKind.CompactionFailure
+    )
+  ).toBe(false);
+
+  await runtime.close();
 });
 
 test("a conversation whose messages are all recent has nothing to compact", async () => {

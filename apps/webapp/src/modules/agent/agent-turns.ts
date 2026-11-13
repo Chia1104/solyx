@@ -9,6 +9,7 @@ import {
 } from "@solyx/agent/wire";
 import type {
   AgentViewItem,
+  CompactionFailureView,
   CompactionView,
   MessageView,
   NoticeView,
@@ -87,8 +88,8 @@ export interface Turn {
   cards: ToolCallView[];
   /** The last reply, once no call has followed it; while it streams, it may still become work. */
   answer?: MessageView;
-  /** How the run ended where it did not simply finish, and where a summary took over. */
-  after: (NoticeView | CompactionView)[];
+  /** How the run ended where it did not simply finish, and where a summary took over or failed. */
+  after: (NoticeView | CompactionView | CompactionFailureView)[];
 }
 
 const sameItems = (
@@ -127,6 +128,7 @@ function place(turn: Turn, item: AgentViewItem) {
       return;
     case AgentItemKind.Notice:
     case AgentItemKind.Compaction:
+    case AgentItemKind.CompactionFailure:
       turn.after.push(item);
 
       return;

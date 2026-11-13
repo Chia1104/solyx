@@ -708,6 +708,7 @@
     "thought": "Thought",
     "working": "Working…",
     "compacting": "Summarizing earlier messages…",
+    "retrying": "The request failed, trying again: {{error}}",
     "context-meter": {
       "label": "Context used",
       "title": "Context window",
@@ -737,7 +738,8 @@
       "aborted": "Stopped.",
       "error": "The agent stopped with an error",
       "interrupted": "Solyx closed before the agent finished.",
-      "store-failed": "Solyx could not save this conversation, so the agent stopped here. It carries on once Solyx restarts."
+      "store-failed": "Solyx could not save this conversation, so the agent stopped here. It carries on once Solyx restarts.",
+      "summary-failed": "Couldn't summarize earlier messages: {{error}}"
     },
     "tools": {
       "get_market_status": "Checked market status",

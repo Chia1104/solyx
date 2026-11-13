@@ -708,6 +708,7 @@
     "thought": "已思考",
     "working": "處理中…",
     "compacting": "正在整理較早的訊息…",
+    "retrying": "請求失敗，正在重試：{{error}}",
     "context-meter": {
       "label": "已用的上下文",
       "title": "上下文用量",
@@ -737,7 +738,8 @@
       "aborted": "已停止。",
       "error": "Agent 因錯誤而停止",
       "interrupted": "Agent 完成前 Solyx 就關閉了。",
-      "store-failed": "Solyx 無法儲存這段對話，Agent 先停在這裡，重新啟動後會接著執行。"
+      "store-failed": "Solyx 無法儲存這段對話，Agent 先停在這裡，重新啟動後會接著執行。",
+      "summary-failed": "無法整理較早的訊息：{{error}}"
     },
     "tools": {
       "get_market_status": "查看市場狀態",
