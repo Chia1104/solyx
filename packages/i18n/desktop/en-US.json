@@ -709,6 +709,8 @@
     "working": "Working…",
     "compacting": "Summarizing earlier messages…",
     "retrying": "The request failed, trying again: {{error}}",
+    "continue": "Continue",
+    "continue-failed": "Couldn't continue",
     "context-meter": {
       "label": "Context used",
       "title": "Context window",

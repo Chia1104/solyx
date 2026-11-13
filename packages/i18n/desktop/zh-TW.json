@@ -709,6 +709,8 @@
     "working": "處理中…",
     "compacting": "正在整理較早的訊息…",
     "retrying": "請求失敗，正在重試：{{error}}",
+    "continue": "繼續",
+    "continue-failed": "無法繼續",
     "context-meter": {
       "label": "已用的上下文",
       "title": "上下文用量",

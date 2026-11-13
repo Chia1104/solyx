@@ -51,6 +51,9 @@ export const agentRouter = agent.router({
   abort: agent.abort.handler(({ context, input }) =>
     context.agent.abort(input)
   ),
+  continue: agent.continue.handler(({ context, input }) =>
+    context.agent.continue(input, context.client.kind === ClientKind.Device)
+  ),
   compact: agent.compact.handler(({ context, input }) =>
     context.agent.compact(input.id, input.instructions)
   ),

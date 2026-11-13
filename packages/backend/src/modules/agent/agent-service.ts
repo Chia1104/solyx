@@ -646,6 +646,9 @@ export function createAgentService(options: AgentServiceOptions) {
 
     abort: (id: string) => runtime.abort(id),
 
+    continue: (id: string, asksEveryCall: boolean) =>
+      runtime.continue(id, asksEveryCall),
+
     compact: (id: string, instructions: string | null) =>
       runtime.compact(id, instructions ?? undefined),
 

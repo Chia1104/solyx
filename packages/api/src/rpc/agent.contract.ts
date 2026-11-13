@@ -92,6 +92,11 @@ export const agentContract = {
     .output(type<FileText>()),
   abort: oc.meta(forDevices(true)).input(idSchema).output(type<void>()),
   /**
+   * Starts a run on the conversation as it stands, without a new message, as after a run that
+   * ended without an answer. A device's asks before every call, as its messages do.
+   */
+  continue: oc.meta(forDevices(true)).input(idSchema).output(type<void>()),
+  /**
    * Summarizes the conversation's older messages, guided by `instructions`, and resolves once the
    * summary is placed or nothing is old enough. Stopping the conversation stops it.
    */

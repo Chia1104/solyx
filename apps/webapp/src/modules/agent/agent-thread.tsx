@@ -82,6 +82,7 @@ function ThreadTurns({
           sessionId={sessionId}
           turn={turn}
           live={view.running && turn === last}
+          ended={!view.running && turn === last}
         />
       ))}
       {view.retrying === undefined ? null : (
