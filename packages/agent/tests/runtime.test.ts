@@ -694,13 +694,14 @@ test("a conversation a scheduled task started says so, and is busy only while it
   await runtime.close();
 });
 
-test("a scheduled task's run stops at its limit of tool rounds, and carries on when asked", async () => {
+test("a run stops at the tool rounds its conversation was made with, and carries on when asked", async () => {
   const { faux, events, runtime, watchlist, ended } = setup();
 
-  const { id } = await runtime.create(undefined, {
-    id: "daily",
-    name: "Daily check",
-  });
+  const { id } = await runtime.create(
+    undefined,
+    { id: "daily", name: "Daily check" },
+    3
+  );
 
   const again = () =>
     fauxAssistantMessage(fauxToolCall("get_watchlist", {}), {
@@ -708,14 +709,14 @@ test("a scheduled task's run stops at its limit of tool rounds, and carries on w
     });
 
   faux.setResponses([
-    ...Array.from({ length: 50 }, again),
+    ...Array.from({ length: 4 }, again),
     fauxAssistantMessage("Nothing new."),
   ]);
 
   await runtime.send(id, { text: "Check the watchlist", context: "" });
   await ended(1);
 
-  expect(watchlist).toHaveBeenCalledTimes(50);
+  expect(watchlist).toHaveBeenCalledTimes(3);
   expect(events.at(-1)).toEqual({
     type: AgentEventType.RunEnd,
     reason: RunEndReason.TurnLimit,

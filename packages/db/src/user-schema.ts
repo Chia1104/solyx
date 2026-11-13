@@ -25,6 +25,7 @@ import type {
   SubmissionFailure,
 } from "@solyx/core/order-desk";
 import type { OrderPremise, RiskViolation } from "@solyx/core/risk";
+import { DEFAULT_SCHEDULE_TURNS } from "@solyx/core/schedule";
 import type {
   Schedule,
   ScheduleApproval,
@@ -130,6 +131,8 @@ export const scheduledTasks = sqliteTable("scheduled_tasks", {
   /** Unix milliseconds. */
   updatedAt: integer("updated_at").notNull(),
   lastRun: text("last_run", { mode: "json" }).$type<ScheduledRun>(),
+  // Added after the table was made, so it comes last, as the migration leaves it.
+  maxTurns: integer("max_turns").notNull().default(DEFAULT_SCHEDULE_TURNS),
 });
 
 /** Every theme as it is written, and when its searches last ran; `seq` keeps the order they were made in. */

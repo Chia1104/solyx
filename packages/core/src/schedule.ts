@@ -80,6 +80,11 @@ export const SCHEDULE_NAME_LENGTH = 80;
 
 export const SCHEDULE_PROMPT_LENGTH = 4_000;
 
+/** The tool rounds a task's run takes at most unless the task says otherwise. */
+export const DEFAULT_SCHEDULE_TURNS = 50;
+
+export const MAX_SCHEDULE_TURNS = 500;
+
 /** A scheduled task as the user writes it. */
 export const scheduledTaskDraftSchema = z.object({
   name: z.string().trim().min(1).max(SCHEDULE_NAME_LENGTH),
@@ -101,6 +106,12 @@ export const scheduledTaskDraftSchema = z.object({
   /** The language a run answers in, as a BCP 47 tag. */
   locale: z.string().min(1),
   approval: z.enum(ScheduleApproval),
+  /**
+   * The tool rounds one run takes at most, a round being one reply's calls however many it makes
+   * at once. Nobody watches a run, so one that keeps calling tools stops there and waits to be
+   * continued.
+   */
+  maxTurns: z.number().int().min(1).max(MAX_SCHEDULE_TURNS),
   enabled: z.boolean(),
 });
 

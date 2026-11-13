@@ -742,7 +742,7 @@
       "interrupted": "Agent 完成前 Solyx 就關閉了。",
       "store-failed": "Solyx 無法儲存這段對話，Agent 先停在這裡，重新啟動後會接著執行。",
       "summary-failed": "無法整理較早的訊息：{{error}}",
-      "turn-limit": "Agent 已達到排程執行的步數上限，先停在這裡。"
+      "turn-limit": "Agent 已達到這個任務的步數上限，先停在這裡。"
     },
     "tools": {
       "get_market_status": "查看市場狀態",
@@ -2256,6 +2256,9 @@
         "ask": "執行會停在第一個這類呼叫，直到你在它的對話中回答。",
         "auto": "直接讀取本次執行找到的網頁、執行判定無害的 shell 指令與策略並新增記憶筆記，其餘仍等你回答。"
       },
+      "max-turns": "每次執行的步數上限",
+      "max-turns-description": "達到上限就停下，之後可以按繼續。模型若會重複呼叫，可以調低。",
+      "max-turns-range": "請輸入 1 到 {{max}} 的整數",
       "required": "請填寫",
       "too-long": "請控制在 {{count}} 個字元內",
       "secret": "這看起來像金鑰、權杖或身分證號，任務不會保存這類內容",

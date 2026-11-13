@@ -19,6 +19,8 @@ import {
   memoryKindSchema,
 } from "@solyx/core/memory";
 import {
+  DEFAULT_SCHEDULE_TURNS,
+  MAX_SCHEDULE_TURNS,
   MIN_INTERVAL_MINUTES,
   ScheduleApproval,
   ScheduleKind,
@@ -436,6 +438,11 @@ export const saveTaskArgumentsSchema = z.object({
     .default(ScheduleApproval.Auto)
     .describe(
       "How a run nobody watches gets past a call that must ask. auto: a page its own searches found is read, a shell command judged harmless runs and a memory is saved, and the rest waits for the user. ask: every such call waits, so the run rests at the first"
+    ),
+  maxTurns: scheduledTaskDraftSchema.shape.maxTurns
+    .default(DEFAULT_SCHEDULE_TURNS)
+    .describe(
+      `The tool rounds one run takes at most, from 1 to ${MAX_SCHEDULE_TURNS}; a run that reaches it stops there until the user continues it. Fewer suits a task that needs a few calls, or a model that repeats its calls`
     ),
   enabled: z
     .boolean()

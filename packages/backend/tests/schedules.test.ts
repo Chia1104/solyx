@@ -32,6 +32,7 @@ const BRIEF: ScheduledTaskDraft = {
   timeZone: "Asia/Taipei",
   locale: "zh-TW",
   approval: ScheduleApproval.Auto,
+  maxTurns: 50,
   enabled: true,
 };
 

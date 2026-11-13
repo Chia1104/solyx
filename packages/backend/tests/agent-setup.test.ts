@@ -453,6 +453,7 @@ test("the scheduled tasks the user wrote read with when each runs and how its ca
     timeZone: "Asia/Taipei",
     locale: "zh-TW",
     approval: ScheduleApproval.Auto,
+    maxTurns: 50,
     enabled: true,
     createdAt: 0,
     updatedAt: 0,
@@ -465,6 +466,7 @@ test("the scheduled tasks the user wrote read with when each runs and how its ca
     name: "Hourly check",
     schedule: { kind: ScheduleKind.Interval, everyMinutes: 60 },
     approval: ScheduleApproval.Ask,
+    maxTurns: 50,
     enabled: false,
   };
 

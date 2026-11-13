@@ -190,10 +190,11 @@ function lastRunText({ lastRun, running, timeZone }: ListedTask): string {
 
 function taskText(task: ListedTask): string {
   const { name, id, schedule, timeZone, approval, enabled, nextRunAt } = task;
+  const rounds = `at most ${task.maxTurns} tool rounds a run`;
 
   return [
     `## ${name} (id ${id})`,
-    `Runs ${whenText(schedule, timeZone)}; calls that must ask: ${approval}; ${enabled ? "switched on" : "switched off"}.`,
+    `Runs ${whenText(schedule, timeZone)}; calls that must ask: ${approval}; ${rounds}; ${enabled ? "switched on" : "switched off"}.`,
     lastRunText(task),
     ...(nextRunAt === null
       ? []
@@ -251,6 +252,7 @@ export function createTaskTools({
       schedule: taskSchedule(args),
       ...tasks.clock(),
       approval: args.approval,
+      maxTurns: args.maxTurns,
       enabled: args.enabled,
     });
 

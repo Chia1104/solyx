@@ -171,6 +171,7 @@ test("a draft refuses what cannot run: a span too short, a time that is none, a 
     timeZone: "Asia/Taipei",
     locale: "zh-TW",
     approval: ScheduleApproval.Ask,
+    maxTurns: 50,
     enabled: true,
   };
 
@@ -187,6 +188,9 @@ test("a draft refuses what cannot run: a span too short, a time that is none, a 
     })),
     { ...draft, timeZone: "Mars/Olympus" },
     { ...draft, approval: "bypass" },
+    { ...draft, maxTurns: 0 },
+    { ...draft, maxTurns: 2.5 },
+    { ...draft, maxTurns: 501 },
     { ...draft, prompt: "Read it with sk-abcdefghijklmnopqrstuvwxyz first." },
   ];
 

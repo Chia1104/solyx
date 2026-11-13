@@ -1,0 +1,1 @@
+ALTER TABLE `scheduled_tasks` ADD `max_turns` integer DEFAULT 50 NOT NULL;
