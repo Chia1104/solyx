@@ -1,12 +1,14 @@
 import { memo } from "react";
 
-import { Disclosure, Spinner } from "@heroui/react";
+import { Button, Disclosure, Spinner } from "@heroui/react";
 import { Clock01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { AgentItemKind, RunEndReason, ToolCallStatus } from "@solyx/agent/wire";
 import type { NoticeView } from "@solyx/agent/wire";
 
+import { orpc } from "../../app/rpc.ts";
 import { ErrorAlert } from "../../components/error-alert.tsx";
 import { Icon } from "../../components/icon.tsx";
 
@@ -27,17 +29,64 @@ import {
 } from "./agent-turns.ts";
 import type { Step, Turn, WorkItem } from "./agent-turns.ts";
 
-function Notice({ notice }: { notice: NoticeView }) {
-  const { t } = useTranslation();
+// A store that failed takes no run until the app restarts.
+const CONTINUABLE = new Set<NoticeView["reason"]>([
+  RunEndReason.Error,
+  RunEndReason.Interrupted,
+  RunEndReason.Aborted,
+]);
 
-  if (notice.reason === RunEndReason.Error) {
-    return (
-      <ErrorAlert title={t("agent.notices.error")} description={notice.error} />
-    );
-  }
+/** Carries the run on from where it ended, without a new message. */
+function ContinueRun({ sessionId }: { sessionId: string }) {
+  const { t } = useTranslation();
+  const carryOn = useMutation(orpc.agent.continue.mutationOptions());
 
   return (
-    <p className="text-xs text-muted">{t(`agent.notices.${notice.reason}`)}</p>
+    <>
+      <Button
+        size="sm"
+        variant="secondary"
+        className="self-start"
+        isPending={carryOn.isPending}
+        onPress={() => carryOn.mutate(sessionId)}>
+        {t("agent.continue")}
+      </Button>
+      {carryOn.error ? (
+        <ErrorAlert
+          title={t("agent.continue-failed")}
+          description={carryOn.error.message}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** How a run ended; `sessionId` where the conversation ended there and can carry on from it. */
+function Notice({
+  notice,
+  sessionId,
+}: {
+  notice: NoticeView;
+  sessionId?: string;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      {notice.reason === RunEndReason.Error ? (
+        <ErrorAlert
+          title={t("agent.notices.error")}
+          description={notice.error}
+        />
+      ) : (
+        <p className="text-xs text-muted">
+          {t(`agent.notices.${notice.reason}`)}
+        </p>
+      )}
+      {sessionId !== undefined && CONTINUABLE.has(notice.reason) ? (
+        <ContinueRun sessionId={sessionId} />
+      ) : null}
+    </>
   );
 }
 
@@ -214,11 +263,14 @@ export const AgentTurn = memo(function AgentTurn({
   sessionId,
   turn,
   live,
+  ended,
 }: {
   sessionId: string;
   turn: Turn;
   /** The run goes, and this is the turn it works on. */
   live: boolean;
+  /** The conversation ended on this turn, so a run that ended it without an answer can carry on. */
+  ended: boolean;
 }) {
   return (
     <>
@@ -242,7 +294,13 @@ export const AgentTurn = memo(function AgentTurn({
         return item.kind === AgentItemKind.CompactionFailure ? (
           <SummaryFailure key={`summary-${index}`} error={item.error} />
         ) : (
-          <Notice key={`notice-${index}`} notice={item} />
+          <Notice
+            key={`notice-${index}`}
+            notice={item}
+            sessionId={
+              ended && index === turn.after.length - 1 ? sessionId : undefined
+            }
+          />
         );
       })}
     </>

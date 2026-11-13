@@ -515,6 +515,102 @@ test("a request the provider fails for a moment is said to wait, then is sent ag
   await runtime.close();
 });
 
+test("a run that ended on an error carries on without a new message", async () => {
+  const { faux, events, runtime, ended } = setup({
+    settings: { retry: { maxRetries: 0 } },
+  });
+
+  const { id } = await runtime.create();
+
+  faux.setResponses([
+    fauxAssistantMessage("", {
+      stopReason: "error",
+      errorMessage: "invalid x-api-key",
+    }),
+    fauxAssistantMessage("Recovered."),
+  ]);
+
+  await runtime.send(id, { text: "hi", context: "" });
+  await ended(1);
+  await runtime.continue(id);
+  await ended(2);
+
+  expect(events.at(-1)).toEqual({
+    type: AgentEventType.RunEnd,
+    reason: RunEndReason.Done,
+  });
+  expect(
+    events.filter((event) => event.type === AgentEventType.User)
+  ).toHaveLength(1);
+  expect(foldEvents(events).items.at(-1)).toMatchObject({
+    kind: AgentItemKind.Assistant,
+    text: "Recovered.",
+  });
+
+  await runtime.close();
+});
+
+test("a run the user stopped carries on from where it stopped", async () => {
+  const { faux, events, runtime, ended } = setup();
+  const { id } = await runtime.create();
+
+  faux.setResponses([
+    (_context, options) =>
+      new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () =>
+          reject(options.signal?.reason)
+        );
+      }),
+    fauxAssistantMessage("Here it is."),
+  ]);
+
+  await runtime.send(id, { text: "hi", context: "" });
+  await vi.waitFor(() => expect(faux.state.callCount).toBe(1));
+  await runtime.abort(id);
+  await ended(1);
+  await runtime.continue(id);
+  await ended(2);
+
+  expect(foldEvents(events).items).toMatchObject([
+    { kind: AgentItemKind.User, text: "hi" },
+    { kind: AgentItemKind.Notice, reason: RunEndReason.Aborted },
+    { kind: AgentItemKind.Assistant, text: "Here it is." },
+  ]);
+
+  await runtime.close();
+});
+
+test("a conversation that answered has nothing to carry on from, and one still answering refuses", async () => {
+  const { faux, events, runtime, ended } = setup();
+  const { id } = await runtime.create();
+
+  faux.setResponses([
+    async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      return fauxAssistantMessage("Done.");
+    },
+  ]);
+
+  await runtime.send(id, { text: "hi", context: "" });
+  await vi.waitFor(() => expect(faux.state.callCount).toBe(1));
+
+  await expect(runtime.continue(id)).rejects.toThrow("still answering");
+  await ended(1);
+  await runtime.continue(id);
+  await ended(2);
+
+  // No request went out: the model was asked once, for the message.
+  expect(faux.state.callCount).toBe(1);
+  expect(events.at(-1)).toEqual({
+    type: AgentEventType.RunEnd,
+    reason: RunEndReason.Error,
+    error: "nothing_to_answer",
+  });
+
+  await runtime.close();
+});
+
 test("a provider error ends the run with its message", async () => {
   const { faux, events, runtime, ended } = setup();
   const { id } = await runtime.create();
@@ -1081,7 +1177,7 @@ function approvalSetup(
     events.filter((event) => event.type === AgentEventType.ApprovalRequest)
       .length;
 
-  return { runtime, events, placed, order, ask, ended, again, asked };
+  return { faux, runtime, events, placed, order, ask, ended, again, asked };
 }
 
 test("a call the user must allow waits in its conversation, which a reload shows, until they do", async () => {
@@ -1251,6 +1347,37 @@ test("of two messages sent at once one is refused, and nothing of it is kept", a
   expect(
     events.filter((event) => event.type === AgentEventType.User)
   ).toMatchObject([{ text: "Buy 2330" }]);
+
+  await runtime.close();
+});
+
+test("a run carried on for a message that asks every call asks in a conversation set to bypass", async () => {
+  const { faux, runtime, placed, order, ended } = approvalSetup();
+  const { id } = await runtime.create();
+
+  await runtime.setApprovalMode(id, ApprovalMode.Bypass);
+  faux.setResponses([
+    fauxAssistantMessage("", {
+      stopReason: "error",
+      errorMessage: "invalid x-api-key",
+    }),
+    fauxAssistantMessage(fauxToolCall("tool_search", {}), {
+      stopReason: "toolUse",
+    }),
+    fauxAssistantMessage(fauxToolCall("place_order", {}), {
+      stopReason: "toolUse",
+    }),
+    fauxAssistantMessage("Done."),
+  ]);
+
+  await runtime.send(id, { text: "Buy 2330", context: "" });
+  await ended();
+  await runtime.continue(id, true);
+  await vi.waitFor(() =>
+    expect(order()).toMatchObject({ status: ToolCallStatus.AwaitingApproval })
+  );
+
+  expect(placed).not.toHaveBeenCalled();
 
   await runtime.close();
 });

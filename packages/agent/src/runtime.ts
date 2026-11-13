@@ -34,6 +34,7 @@ import type {
   Page,
   RunFailure,
   Storage,
+  SubmissionDraft,
   ToolSlot,
   Tx,
 } from "@earendil-works/pi-durable";
@@ -258,6 +259,8 @@ interface Watch {
 }
 
 const TITLE_LENGTH = 60;
+
+const BUSY = "The agent is still answering in this conversation";
 
 const PAGE = 200;
 
@@ -818,6 +821,42 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     });
   }
 
+  /**
+   * Admits what starts a run in the commit that stores what the run goes on: the model, the tools
+   * and whether it asks before every call. A conversation that turned busy meanwhile refuses it,
+   * and the commit with it, so nothing changes a run that is not its own. `title` names a
+   * conversation that has no name yet.
+   */
+  async function admit(
+    conversation: Conversation,
+    choice: AgentModelChoice,
+    draft: SubmissionDraft,
+    asksEveryCall = false,
+    title?: string
+  ) {
+    await toolset.load();
+    await attach(conversation);
+
+    const at = Date.now();
+
+    try {
+      await conversation.commit(async (tx) => {
+        await conversation.submit(tx, draft);
+        await configureModel(tx, conversation.id, choice);
+        await toolset.offer(tx, conversation.id);
+
+        const session = await tx.doc(SessionDoc, conversation.id);
+
+        if (title) session.title ||= title;
+
+        session.updatedAt = at;
+        (await tx.doc(AskEveryCallDoc, conversation.id)).asks = asksEveryCall;
+      }, BACKGROUND_CONTEXT);
+    } catch (error) {
+      throw error instanceof ConversationBusy ? new Error(BUSY) : error;
+    }
+  }
+
   /** The conversation's approval mode and what its calls that asked were answered. */
   async function approvalsOf(id: ConversationId) {
     const { harness } = await opened;
@@ -1275,15 +1314,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const conversation = await conversationOf(sessionId);
       const { harness } = await opened;
 
-      const busy = new Error(
-        "The agent is still answering in this conversation"
-      );
-
       if (
         (await harness.snapshot(LiveDoc, conversation.id, BACKGROUND_CONTEXT))
           ?.run
       ) {
-        throw busy;
+        throw new Error(BUSY);
       }
 
       const choice = await choiceOf(conversation.id);
@@ -1293,36 +1328,34 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
         choice.model
       );
 
-      await toolset.load();
+      await admit(
+        conversation,
+        choice,
+        {
+          type: "input",
+          content: userContent(turn.text, turn.context, attachments),
+          whenBusy: "reject",
+        },
+        turn.asksEveryCall,
+        firstLine(turn.text, TITLE_LENGTH)
+      );
+    },
 
-      await attach(conversation);
+    /**
+     * Starts a run on the conversation as it stands, without a new message, as after a run that
+     * ended without an answer, and resolves once it is under way. Rejects without starting while
+     * the conversation is busy or the model is not set up. A conversation whose last reply
+     * answered has nothing to carry on from, so its run ends at once, saying so.
+     */
+    async continue(sessionId: string, asksEveryCall = false): Promise<void> {
+      const conversation = await conversationOf(sessionId);
 
-      const at = Date.now();
-
-      // The message is admitted in the commit that stores what its run goes on: the model, the
-      // tools and whether it asks before every call. A conversation that turned busy meanwhile
-      // refuses the message, and the commit with it, so a message never changes a run that is not
-      // its own.
-      try {
-        await conversation.commit(async (tx) => {
-          await conversation.submit(tx, {
-            type: "input",
-            content: userContent(turn.text, turn.context, attachments),
-            whenBusy: "reject",
-          });
-          await configureModel(tx, conversation.id, choice);
-          await toolset.offer(tx, conversation.id);
-
-          const session = await tx.doc(SessionDoc, conversation.id);
-
-          session.title ||= firstLine(turn.text, TITLE_LENGTH);
-          session.updatedAt = at;
-          (await tx.doc(AskEveryCallDoc, conversation.id)).asks =
-            turn.asksEveryCall ?? false;
-        }, BACKGROUND_CONTEXT);
-      } catch (error) {
-        throw error instanceof ConversationBusy ? busy : error;
-      }
+      await admit(
+        conversation,
+        await choiceOf(conversation.id),
+        { type: "continue" },
+        asksEveryCall
+      );
     },
 
     approve: gate.approve,
