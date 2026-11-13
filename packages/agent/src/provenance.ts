@@ -6,11 +6,8 @@ const KEPT = /[\p{L}\p{N}%]|(?<=\d)\.(?=\d)|-(?=\d)/gu;
 /** A text as it is compared: the same however it was spaced, cased, punctuated or marked up. */
 const essence = (text: string) =>
   (
-    text
-      .normalize("NFKC")
-      .toLowerCase()
-      .replace(/[−–—]/g, "-")
-      .match(KEPT) ?? []
+    text.normalize("NFKC").toLowerCase().replace(/[−–—]/g, "-").match(KEPT) ??
+    []
   ).join("");
 
 /**
