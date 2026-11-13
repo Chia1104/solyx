@@ -1986,6 +1986,8 @@
         "medium": "Medium",
         "high": "High"
       },
+      "title-model": "Model that names conversations",
+      "title-model-description": "Writes each conversation's name after its first answer. A smaller model costs less.",
       "decision-mode": "Decision mode",
       "decision-mode-description": "Who judges the agent's forecasts and order proposals. The MAGI are three units that vote, and two votes carry: an order they reject isn't proposed, and a forecast keeps their votes. Each vote costs three more requests, and you still confirm every order.",
       "decision-modes": {

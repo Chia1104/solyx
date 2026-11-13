@@ -39,6 +39,7 @@ import { createAgentRuntime } from "../src/runtime.ts";
 import type {
   AgentAttachment,
   AgentConversationStore,
+  AgentRuntimeOptions,
 } from "../src/runtime.ts";
 import {
   AgentEventType,
@@ -81,13 +82,15 @@ function setup({
   onReport,
   images,
   names,
+  model,
 }: {
   store?: AgentConversationStore;
   faux?: ReturnType<typeof fauxProvider>;
   settings?: HarnessSettings;
   onReport?: HarnessOptions["onReport"];
   images?: ImageProcessor;
-  names?: boolean;
+  names?: AgentRuntimeOptions["names"];
+  model?: AgentRuntimeOptions["model"];
 } = {}) {
   const models = createModels();
 
@@ -99,10 +102,12 @@ function setup({
   const runtime = createAgentRuntime({
     store: Promise.resolve(store),
     models,
-    model: async () => ({
-      model: faux.getModel(),
-      thinking: AgentThinking.Off,
-    }),
+    model:
+      model ??
+      (async () => ({
+        model: faux.getModel(),
+        thinking: AgentThinking.Off,
+      })),
     tools: only(
       defineExtension({
         name: "test",
@@ -741,7 +746,7 @@ const named = (events: readonly AgentWireEvent[], count = 1) =>
   );
 
 test("the model names a conversation once its first run has answered, and only once", async () => {
-  const { faux, events, runtime, ended } = setup({ names: true });
+  const { faux, events, runtime, ended } = setup({ names: () => null });
   const { id } = await runtime.create();
 
   let shown = "";
@@ -793,7 +798,7 @@ test("the model names a conversation once its first run has answered, and only o
 });
 
 test("a message sent while a conversation is being named is taken at once, and the next answer names it", async () => {
-  const { faux, events, runtime, ended } = setup({ names: true });
+  const { faux, events, runtime, ended } = setup({ names: () => null });
   const { id } = await runtime.create();
 
   faux.setResponses([
@@ -829,8 +834,58 @@ test("a message sent while a conversation is being named is taken at once, and t
   await runtime.close();
 });
 
+test("a conversation is named by the model the user picked for names, and by none where that one cannot run", async () => {
+  const faux = fauxProvider();
+  const cheap = { provider: "cheap", id: "small" };
+  const usable = { value: false };
+
+  const model = vi.fn<AgentRuntimeOptions["model"]>(async (pick) => {
+    if (pick.model?.id === cheap.id && !usable.value) {
+      throw new Error("cheap needs a key");
+    }
+
+    return { model: faux.getModel(), thinking: AgentThinking.Off };
+  });
+
+  const { events, runtime, ended } = setup({
+    faux,
+    model,
+    names: () => cheap,
+  });
+
+  faux.setResponses([
+    fauxAssistantMessage("First answer."),
+    fauxAssistantMessage("Second answer."),
+    fauxAssistantMessage("A cheap name"),
+  ]);
+
+  const { id } = await runtime.create();
+
+  // While the model picked for names cannot run, nothing is asked in its place.
+  await runtime.send(id, { text: "First question", context: "" });
+  await ended(1);
+  await named(events);
+
+  expect(faux.state.callCount).toBe(1);
+  expect(await runtime.sessions()).toMatchObject([
+    { id, title: "First question" },
+  ]);
+
+  usable.value = true;
+  await runtime.send(id, { text: "Second question", context: "" });
+  await ended(2);
+  await named(events, 2);
+
+  expect(model).toHaveBeenCalledWith({ model: cheap, thinking: null });
+  expect(await runtime.sessions()).toMatchObject([
+    { id, title: "A cheap name" },
+  ]);
+
+  await runtime.close();
+});
+
 test("a provider that fails to name a conversation leaves it its first line", async () => {
-  const { faux, events, runtime, ended } = setup({ names: true });
+  const { faux, events, runtime, ended } = setup({ names: () => null });
   const { id } = await runtime.create();
 
   faux.setResponses([
@@ -892,7 +947,7 @@ test("a conversation from before the model named them keeps its name", async () 
   await session.close(BACKGROUND_CONTEXT);
 
   const { faux, runtime, ended } = setup({
-    names: true,
+    names: () => null,
     store: {
       storage: await openNodeSqliteStorage(path),
       deleteConversation: vi.fn(async () => undefined),

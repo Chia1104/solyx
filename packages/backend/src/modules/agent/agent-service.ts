@@ -487,7 +487,7 @@ export function createAgentService(options: AgentServiceOptions) {
     },
     env: shell.env,
     images: createImageThreads(IMAGE_FILES),
-    names: true,
+    names: () => options.config.read().agent.titleModel,
     onEvent,
     onStoreFailure(cause) {
       storeFailed = true;

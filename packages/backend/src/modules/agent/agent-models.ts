@@ -232,6 +232,7 @@ export function createAgentModels({
         thinking,
         decisionMode: agent.decisionMode,
         magi: agent.magi,
+        titleModel: agent.titleModel,
         models: (
           await Promise.all(
             providers

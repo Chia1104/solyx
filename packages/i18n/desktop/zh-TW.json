@@ -1986,6 +1986,8 @@
         "medium": "中",
         "high": "高"
       },
+      "title-model": "為對話命名的模型",
+      "title-model-description": "在第一次回答後為對話取名。選較小的模型比較省。",
       "decision-mode": "決策模式",
       "decision-mode-description": "由誰評斷 Agent 的預測與下單建議。MAGI 由三個單元投票，兩票即通過：被否決的下單不會提出，預測則附上表決結果。每次表決多花三次請求，每筆委託仍需你確認。",
       "decision-modes": {
