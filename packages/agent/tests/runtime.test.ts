@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import {
   createModels,
   fauxAssistantMessage,
@@ -14,7 +15,12 @@ import type {
   FauxResponseFactory,
 } from "@earendil-works/pi-ai";
 import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
-import { MemoryStorage, defineExtension } from "@earendil-works/pi-durable";
+import {
+  MemoryStorage,
+  createSession,
+  defineDoc,
+  defineExtension,
+} from "@earendil-works/pi-durable";
 import type {
   Extension,
   HarnessOptions,
@@ -74,12 +80,14 @@ function setup({
   settings,
   onReport,
   images,
+  names,
 }: {
   store?: AgentConversationStore;
   faux?: ReturnType<typeof fauxProvider>;
   settings?: HarnessSettings;
   onReport?: HarnessOptions["onReport"];
   images?: ImageProcessor;
+  names?: boolean;
 } = {}) {
   const models = createModels();
 
@@ -116,6 +124,7 @@ function setup({
     settings,
     onReport,
     images,
+    names,
   });
 
   /** Resolves once `count` runs have ended. */
@@ -721,6 +730,194 @@ test("a scheduled task's run stops at its limit of tool rounds, and carries on w
   });
 
   await runtime.close();
+});
+
+/** Resolves once the conversation's run and what followed its answer are both over. */
+const named = (events: readonly AgentWireEvent[], count = 1) =>
+  vi.waitFor(() =>
+    expect(
+      events.filter((event) => event.type === AgentEventType.Named)
+    ).toHaveLength(count)
+  );
+
+test("the model names a conversation once its first run has answered, and only once", async () => {
+  const { faux, events, runtime, ended } = setup({ names: true });
+  const { id } = await runtime.create();
+
+  let shown = "";
+
+  faux.setResponses([
+    fauxAssistantMessage("TSMC closed at 1,000."),
+    (context) => {
+      shown = JSON.stringify(context.messages);
+
+      return fauxAssistantMessage("「台積電收盤價」。");
+    },
+    fauxAssistantMessage("It rose 1%."),
+  ]);
+
+  await runtime.send(id, {
+    text: "台積電今天收在哪？\n順便看一下漲跌",
+    context: "now: 2026-11-13",
+  });
+  await ended(1);
+
+  // The run is over for the thread as it answers, whatever follows the answer.
+  expect(foldEvents(events).running).toBe(false);
+  expect(await runtime.busy(id)).toBe(false);
+
+  await named(events);
+
+  // The model is shown the question as the user wrote it and the answer, not the app's context.
+  expect(shown).toContain("台積電今天收在哪？");
+  expect(shown).toContain("TSMC closed at 1,000.");
+  expect(shown).not.toContain("2026-11-13");
+  expect(await runtime.sessions()).toMatchObject([
+    { id, title: "台積電收盤價" },
+  ]);
+  expect(await runtime.sessions()).not.toHaveProperty("0.named");
+
+  await runtime.send(id, { text: "And the change?", context: "" });
+  await ended(2);
+
+  // Named already, so its second answer asks the model for nothing more.
+  expect(faux.state.callCount).toBe(3);
+  expect(await runtime.sessions()).toMatchObject([
+    { id, title: "台積電收盤價" },
+  ]);
+  expect(
+    events.filter((event) => event.type === AgentEventType.RunStart)
+  ).toHaveLength(2);
+
+  await runtime.close();
+});
+
+test("a message sent while a conversation is being named is taken at once, and the next answer names it", async () => {
+  const { faux, events, runtime, ended } = setup({ names: true });
+  const { id } = await runtime.create();
+
+  faux.setResponses([
+    fauxAssistantMessage("First answer."),
+    (_context, options) =>
+      new Promise((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () =>
+          reject(options.signal?.reason)
+        );
+      }),
+    fauxAssistantMessage("Second answer."),
+    fauxAssistantMessage("Two questions"),
+  ]);
+
+  await runtime.send(id, { text: "First question", context: "" });
+  await ended(1);
+  await vi.waitFor(() => expect(faux.state.callCount).toBe(2));
+
+  await runtime.send(id, { text: "Second question", context: "" });
+  await ended(2);
+  await named(events, 2);
+
+  expect(await runtime.sessions()).toMatchObject([
+    { id, title: "Two questions" },
+  ]);
+  expect(foldEvents(events).items).toMatchObject([
+    { kind: AgentItemKind.User, text: "First question" },
+    { kind: AgentItemKind.Assistant, text: "First answer." },
+    { kind: AgentItemKind.User, text: "Second question" },
+    { kind: AgentItemKind.Assistant, text: "Second answer." },
+  ]);
+
+  await runtime.close();
+});
+
+test("a provider that fails to name a conversation leaves it its first line", async () => {
+  const { faux, events, runtime, ended } = setup({ names: true });
+  const { id } = await runtime.create();
+
+  faux.setResponses([
+    fauxAssistantMessage("Answer."),
+    fauxAssistantMessage("", {
+      stopReason: "error",
+      errorMessage: "invalid x-api-key",
+    }),
+  ]);
+
+  await runtime.send(id, { text: "A question", context: "" });
+  await ended(1);
+  await named(events);
+
+  expect(await runtime.sessions()).toMatchObject([{ id, title: "A question" }]);
+  expect(await runtime.busy(id)).toBe(false);
+
+  await runtime.close();
+});
+
+test("a conversation from before the model named them keeps its name", async () => {
+  const path = join(directory, "agent.sqlite");
+
+  // The conversation's document as the app stored it before it kept who named one.
+  const StoredSessionDoc = defineDoc<{
+    title: string;
+    createdAt: number;
+    updatedAt: number;
+    model: null;
+    thinking: null;
+  }>({
+    kind: "solyx.session",
+    version: 2,
+    scope: "conversation",
+    history: "latest",
+    fork: "initial",
+    initial: () => ({
+      title: "",
+      createdAt: 0,
+      updatedAt: 0,
+      model: null,
+      thinking: null,
+    }),
+    checkpointWhen: () => true,
+  });
+
+  const session = createSession(await openNodeSqliteStorage(path));
+
+  const id = await session.commit(async (tx) => {
+    const conversation = await tx.createConversation({
+      ownership: { kind: "ownerless" },
+    });
+
+    (await tx.doc(StoredSessionDoc, conversation.id)).title = "Dividend plan";
+
+    return String(conversation.id);
+  }, BACKGROUND_CONTEXT);
+
+  await session.close(BACKGROUND_CONTEXT);
+
+  const { faux, runtime, ended } = setup({
+    names: true,
+    store: {
+      storage: await openNodeSqliteStorage(path),
+      deleteConversation: vi.fn(async () => undefined),
+    },
+  });
+
+  faux.setResponses([fauxAssistantMessage("Here is the plan again.")]);
+  await runtime.send(id, { text: "Show it again", context: "" });
+  await ended(1);
+  await runtime.close();
+
+  expect(faux.state.callCount).toBe(1);
+
+  const reopened = setup({
+    store: {
+      storage: await openNodeSqliteStorage(path),
+      deleteConversation: vi.fn(async () => undefined),
+    },
+  });
+
+  expect(await reopened.runtime.sessions()).toMatchObject([
+    { id, title: "Dividend plan" },
+  ]);
+
+  await reopened.runtime.close();
 });
 
 test("one run per conversation at a time", async () => {
