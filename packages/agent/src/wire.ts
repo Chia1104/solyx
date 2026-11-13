@@ -632,6 +632,8 @@ export const RunEndReason = {
   Interrupted: "interrupted",
   /** The conversations' store failed mid-run; the run carries on once the app starts again. */
   StoreFailed: "store-failed",
+  /** The run took as many tool rounds as its conversation allows one, so it stopped there. */
+  TurnLimit: "turn-limit",
 } as const;
 
 export type RunEndReason = (typeof RunEndReason)[keyof typeof RunEndReason];

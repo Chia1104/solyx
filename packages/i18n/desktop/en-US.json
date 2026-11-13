@@ -741,7 +741,8 @@
       "error": "The agent stopped with an error",
       "interrupted": "Solyx closed before the agent finished.",
       "store-failed": "Solyx could not save this conversation, so the agent stopped here. It carries on once Solyx restarts.",
-      "summary-failed": "Couldn't summarize earlier messages: {{error}}"
+      "summary-failed": "Couldn't summarize earlier messages: {{error}}",
+      "turn-limit": "The agent reached the limit of steps a scheduled run takes and stopped here."
     },
     "tools": {
       "get_market_status": "Checked market status",
