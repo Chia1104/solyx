@@ -142,7 +142,7 @@ catalogs:
     cn: 0.5.2
     shadcn: 4.23.0
     shaders: 4.0.7
-    void: 1.2.1
+    void: 1.7.0
 
 # esbuild (through drizzle-kit), sentry-cli (through Sentry's Vite plugin) and workerd (through Void)
 # run from their platform packages; their install scripts only verify them, or download one when it
