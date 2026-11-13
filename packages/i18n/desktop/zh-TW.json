@@ -741,7 +741,8 @@
       "error": "Agent 因錯誤而停止",
       "interrupted": "Agent 完成前 Solyx 就關閉了。",
       "store-failed": "Solyx 無法儲存這段對話，Agent 先停在這裡，重新啟動後會接著執行。",
-      "summary-failed": "無法整理較早的訊息：{{error}}"
+      "summary-failed": "無法整理較早的訊息：{{error}}",
+      "turn-limit": "Agent 已達到排程執行的步數上限，先停在這裡。"
     },
     "tools": {
       "get_market_status": "查看市場狀態",

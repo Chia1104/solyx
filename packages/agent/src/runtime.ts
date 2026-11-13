@@ -262,6 +262,12 @@ const TITLE_LENGTH = 60;
 
 const BUSY = "The agent is still answering in this conversation";
 
+/**
+ * The tool rounds one run of a scheduled task takes at most. Nobody watches such a run, so one
+ * that keeps calling tools would spend the user's model budget until they looked.
+ */
+const SCHEDULED_TURNS = 50;
+
 const PAGE = 200;
 
 /** Every item of a paged scan, in the order its pages list them. */
@@ -575,6 +581,9 @@ function failureOf({ reason, detail }: RunFailure): RunEndEvent {
     case "interrupted":
     case "restart_limit":
       return { type: AgentEventType.RunEnd, reason: RunEndReason.Interrupted };
+
+    case "turn_limit":
+      return { type: AgentEventType.RunEnd, reason: RunEndReason.TurnLimit };
 
     // A model error carries the provider's message; other reasons name themselves.
     default:
@@ -1193,7 +1202,10 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
             session.thinking = setup.thinking;
             (await tx.doc(ApprovalDoc, id)).mode = setup.approvalMode;
 
-            if (schedule) (await tx.doc(OriginDoc, id)).schedule = schedule;
+            if (schedule) {
+              (await tx.doc(OriginDoc, id)).schedule = schedule;
+              await configure(tx, id, { maxTurns: SCHEDULED_TURNS });
+            }
           },
         },
         BACKGROUND_CONTEXT

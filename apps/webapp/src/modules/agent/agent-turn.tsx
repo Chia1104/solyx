@@ -34,6 +34,7 @@ const CONTINUABLE = new Set<NoticeView["reason"]>([
   RunEndReason.Error,
   RunEndReason.Interrupted,
   RunEndReason.Aborted,
+  RunEndReason.TurnLimit,
 ]);
 
 /** Carries the run on from where it ended, without a new message. */

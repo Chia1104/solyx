@@ -86,6 +86,7 @@ const STOPPED: Record<NoticeView["reason"], string> = {
   [RunEndReason.Error]: "ended in an error",
   [RunEndReason.Interrupted]: "cut off as the app quit",
   [RunEndReason.StoreFailed]: "cut off as the conversations' store failed",
+  [RunEndReason.TurnLimit]: "stopped at its limit of tool rounds",
 };
 
 /** Where a run stands, as its conversation ends. */
