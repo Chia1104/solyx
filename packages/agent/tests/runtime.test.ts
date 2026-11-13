@@ -1181,6 +1181,36 @@ test("a message that asks every call has its run ask in a conversation set to by
   await runtime.close();
 });
 
+test("of two messages sent at once one is refused, and nothing of it is kept", async () => {
+  const { runtime, events, placed, ended, asked } = approvalSetup();
+  const { id } = await runtime.create();
+
+  await runtime.setApprovalMode(id, ApprovalMode.Bypass);
+
+  const [first, second] = await Promise.allSettled([
+    runtime.send(id, { text: "Buy 2330", context: "" }),
+    runtime.send(id, { text: "Buy more", context: "", asksEveryCall: true }),
+  ]);
+
+  expect(first.status).toBe("fulfilled");
+  expect(second).toMatchObject({
+    status: "rejected",
+    reason: { message: "The agent is still answering in this conversation" },
+  });
+
+  await ended();
+
+  // Were the refused message's mark kept, the run would have asked before placing the order.
+  expect(placed).toHaveBeenCalledOnce();
+  expect(asked()).toBe(0);
+  expect(await runtime.sessions()).toMatchObject([{ id, title: "Buy 2330" }]);
+  expect(
+    events.filter((event) => event.type === AgentEventType.User)
+  ).toMatchObject([{ text: "Buy 2330" }]);
+
+  await runtime.close();
+});
+
 test("a tool the user lets run unasked asks only in a run that asks every call", async () => {
   const { runtime, placed, order, ended, again, asked } = approvalSetup(
     memoryStore(),
