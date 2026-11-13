@@ -14,7 +14,7 @@ import {
 } from "@earendil-works/pi-durable";
 import type {
   EntryRecord,
-  NestedToolExecutionResult,
+  NestedToolSummary,
 } from "@earendil-works/pi-durable";
 import { escape, unescape } from "es-toolkit";
 
@@ -354,39 +354,32 @@ const failure = (text: string | undefined) =>
   text ? firstLine(text, 160) : undefined;
 
 /**
- * The end of a call a script made, which returns to its script rather than to the transcript.
- * One stopped with its run never finished. One the app's exit cut off failed instead, since its
- * script was told so and went on, which is how the script's result lists it.
+ * The end of a call a script made, which returns to its script rather than to the transcript, from
+ * how pi-durable says it ended. One `stopped` with its run, or that left no word of its end, never
+ * finished. One the app's exit cut off failed instead, since its script was told so and went on,
+ * which is how the script's result lists it.
  */
 export function scriptCallEnd(
   call: Pick<ToolEndEvent, "toolCallId" | "toolName">,
-  result: NestedToolExecutionResult | undefined
+  summary: NestedToolSummary | undefined,
+  stopped = false
 ): ToolEndEvent {
-  // Named one by one: `call` may be a wider object, such as pi-durable's own event.
   const event = {
     type: AgentEventType.ToolEnd,
     toolCallId: call.toolCallId,
     toolName: call.toolName,
   };
 
-  if (
-    !result ||
-    result.diagnostics.some((diagnostic) => diagnostic.code === "aborted")
-  ) {
+  if (!summary || stopped) {
     return { ...event, status: ToolCallStatus.Aborted };
   }
 
-  if (!result.isError) return { ...event, status: ToolCallStatus.Ok };
+  if (!summary.isError) return { ...event, status: ToolCallStatus.Ok };
 
   return {
     ...event,
     status: ToolCallStatus.Error,
-    error: failure(
-      result.diagnostics
-        .filter((diagnostic) => diagnostic.severity === "error")
-        .map((diagnostic) => diagnostic.message)
-        .join("\n")
-    ),
+    error: failure(summary.error),
   };
 }
 
@@ -604,11 +597,12 @@ export function createTranscriber(approvals: ApprovalRecord) {
     /**
      * The events of stored entries, oldest first. Unless the conversation is `running`, calls
      * whose results never came are closed as aborted, and a run that stops short ends as
-     * interrupted.
+     * `failure` says its newest run did, or else as interrupted.
      */
     replay(
       entries: readonly EntryRecord[],
-      running: boolean
+      running: boolean,
+      failure?: RunEndEvent
     ): AgentWireEvent[] {
       const events: AgentWireEvent[] = [];
 
@@ -639,7 +633,7 @@ export function createTranscriber(approvals: ApprovalRecord) {
         }
       }
 
-      if (!running) events.push(...runEnd());
+      if (!running) events.push(...runEnd(failure));
       // A run that has not stored its user message yet still shows as running.
       else if (!inRun) events.push(...runStart());
 

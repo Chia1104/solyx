@@ -17,24 +17,24 @@ import {
   configure,
   createRegistry,
   defineDoc,
-  watchEvents,
 } from "@earendil-works/pi-durable";
 import type {
-  AgentEvent,
-  AgentEventStream,
-  CompactionReason,
+  CompactionStatus,
   Conversation,
   ConversationId,
+  ConversationView,
   Cursor,
   EntryId,
+  EntryRecord,
   HarnessOptions,
   HarnessSettings,
-  MessageChange,
+  LiveState,
+  NestedToolSlot,
+  Observation,
   Page,
+  RunFailure,
   Storage,
-  SubmissionRecord,
-  TaskId,
-  TaskInspection,
+  ToolSlot,
   Tx,
 } from "@earendil-works/pi-durable";
 import { DEFAULT_IMAGE_LIMITS } from "@earendil-works/pi-durable/tools";
@@ -42,7 +42,7 @@ import type {
   ImageLimits,
   ImageProcessor,
 } from "@earendil-works/pi-durable/tools";
-import { Mutex, maxBy, noop } from "es-toolkit";
+import { Mutex, noop } from "es-toolkit";
 import * as z from "zod";
 
 import { firstLine } from "@solyx/utils/text";
@@ -123,7 +123,7 @@ export interface AgentRuntimeOptions {
    * ends went out.
    */
   onStoreFailure?(cause: unknown): void;
-  /** What pi-durable reports went wrong, such as a task that threw or a run it parked. */
+  /** What pi-durable reports went wrong, such as a task that threw or a run the app's exits ended. */
   onReport?: HarnessOptions["onReport"];
   settings?: HarnessSettings;
   /** Scales and re-encodes the images a message carries to fit its model; without it, none rides. */
@@ -232,25 +232,29 @@ type Block = AssistantMessage["content"][number];
 
 /** A conversation whose events go out as they happen. */
 interface Watch {
-  stream: AgentEventStream;
-  /** The conversation as the stream found it; `transcript` returns it, then `log`. */
+  /** The conversation's commits as pi-durable adopts them, until detached. */
+  observation: Observation<ConversationView>;
+  /** The conversation as the observation found it; `transcript` returns it, then `log`. */
   base: AgentWireEvent[];
   /** Every event sent since, consecutive deltas merged. */
   log: AgentWireEvent[];
-  /** Read `base` from storage, and turns what the stream stores since into events. */
+  /** Read `base` from storage, and turns what is stored since into events. */
   transcriber: Transcriber;
+  /** The conversation as of the last commit whose events went out. */
+  view: ConversationView;
+  /** The newest entry whose events went out; a commit's own entries all follow it. */
+  newest?: EntryId;
   /** The reply streaming now, the text and thinking already sent of it and the calls it drafted. */
   streaming?: {
     id: string;
-    content: Block[];
     text: string;
     thinking: string;
     drafted: Set<string>;
   };
-  /** Why the run's input went unanswered, when it ended without a final reply. */
-  failure?: RunEndEvent;
   /** The tokens last sent as the next request's context. */
   context?: number;
+  /** Settles once the events of every commit taken so far went out. */
+  sent: Promise<void>;
 }
 
 const TITLE_LENGTH = 60;
@@ -274,61 +278,21 @@ async function readAll<Item>(
   return items;
 }
 
-function applyChanges(content: Block[], changes: readonly MessageChange[]) {
-  for (const change of changes) {
-    switch (change.type) {
-      case "text_start":
-      case "thinking_start":
-      case "toolcall_start":
-      case "block":
-        content[change.contentIndex] = structuredClone(change.block);
-        break;
-
-      case "text_delta": {
-        const part = content[change.contentIndex];
-
-        if (part?.type === "text") part.text += change.delta;
-
-        break;
-      }
-
-      case "thinking_delta": {
-        const part = content[change.contentIndex];
-
-        if (part?.type === "thinking") part.thinking += change.delta;
-
-        break;
-      }
-
-      case "message":
-        content.splice(
-          0,
-          content.length,
-          ...structuredClone(change.message.content)
-        );
-        break;
-
-      default:
-        break;
-    }
-  }
-}
-
 /**
  * The calls a streaming reply began since the last look, each once its id and name have come, so a
  * call shows as the model writes its arguments rather than only once it runs.
  */
-function emitDrafts(streaming: { content: Block[]; drafted: Set<string> }) {
+function emitDrafts(content: readonly Block[], drafted: Set<string>) {
   const drafts: AgentWireEvent[] = [];
 
-  for (const block of streaming.content) {
+  for (const block of content) {
     if (
-      block?.type === "toolCall" &&
+      block.type === "toolCall" &&
       block.id &&
       block.name &&
-      !streaming.drafted.has(block.id)
+      !drafted.has(block.id)
     ) {
-      streaming.drafted.add(block.id);
+      drafted.add(block.id);
       drafts.push({
         type: AgentEventType.ToolDraft,
         toolCallId: block.id,
@@ -340,21 +304,33 @@ function emitDrafts(streaming: { content: Block[]; drafted: Set<string> }) {
   return drafts;
 }
 
-// The events after which the next request holds something else.
-const CONTEXT_CHANGES = new Set<AgentEvent["type"]>([
-  "message_end",
-  "tool_execution_end",
-  "entry_appended",
-]);
-
-const compactionStart = (status: {
-  taskId: TaskId;
-  reason: CompactionReason;
-}): AgentWireEvent => ({
+const compactionStart = (status: CompactionStatus): AgentWireEvent => ({
   type: AgentEventType.CompactionStart,
   id: String(status.taskId),
-  manual: status.reason === "manual",
+  manual: status.trigger === "manual",
 });
+
+/** A view's run and what its reply and tool round show now; empty while it has none of them. */
+const liveOf = (view: ConversationView) =>
+  // SAFETY: a view keys each built-in document by its kind, so this one holds `pi.live`'s state.
+  (view.docs[LiveDoc.definition.kind] ?? {}) as LiveState;
+
+/** What the model called `callId` with, as the reply that made the call holds it. */
+function callArguments(view: ConversationView, callId: string) {
+  for (let index = view.entries.length - 1; index >= 0; index--) {
+    const [stored] = view.entries[index]?.model ?? [];
+
+    if (stored?.role !== "assistant") continue;
+
+    const call = stored.content.find(
+      (block) => block.type === "toolCall" && block.id === callId
+    );
+
+    if (call?.type === "toolCall") return call.arguments;
+  }
+
+  return {};
+}
 
 /** What the conversation's next request holds, as pi estimates it; 0 while it holds nothing. */
 async function contextTokens(conversation: Conversation) {
@@ -363,37 +339,227 @@ async function contextTokens(conversation: Conversation) {
   return estimateContextTokens(messages).tokens;
 }
 
-/** How an input went unanswered, as pi-durable settles it, in the run's terms. */
-function failureOf(
-  record: Extract<SubmissionRecord, { status: "unanswered" }>
-): RunEndEvent {
-  if (record.reason === "aborted") {
-    return { type: AgentEventType.RunEnd, reason: RunEndReason.Aborted };
-  }
+type Slot = ToolSlot | NestedToolSlot;
 
-  // A model error carries the provider's message; other reasons name themselves.
-  const message = z.string().safeParse(record.detail).data;
+/** The calls of `after` that began to run since `before`, each told from the rest by its `key`. */
+function startedSlots<Call extends Slot, Key>(
+  before: readonly Call[] = [],
+  after: readonly Call[] = [],
+  key: (slot: Call) => Key
+) {
+  if (before === after) return [];
 
-  return {
-    type: AgentEventType.RunEnd,
-    reason: RunEndReason.Error,
-    error:
-      message ??
-      (record.reason === "no_model" ? "No model is configured" : record.reason),
-  };
+  const running = new Set(
+    before.filter((slot) => slot.status === "running").map(key)
+  );
+
+  return after.filter(
+    (slot) => slot.status === "running" && !running.has(key(slot))
+  );
 }
 
 /**
- * A task the app's exits cut off as often as pi-durable allows without it getting further, which
- * runs again only once retried, since it may be what brought the app down.
+ * The calls that ended between `before` and `after`, in the order their lists hold them: one that
+ * is done now, as `after` holds it, or one that went unfinished as its run ended, as `before` did.
  */
-const isParked = (task: TaskInspection) =>
-  task.state.kind === "blocked" && task.state.reason === "restart_limit";
+function endedSlots<Call extends Slot, Key>(
+  before: readonly Call[] = [],
+  after: readonly Call[] = [],
+  key: (slot: Call) => Key
+) {
+  if (before === after) return [];
+
+  const now = new Map(after.map((slot) => [key(slot), slot]));
+  const known = new Set(before.map(key));
+
+  return [
+    ...before.flatMap((previous) => {
+      if (previous.status === "done") return [];
+
+      const slot = now.get(key(previous));
+
+      if (!slot) return [previous];
+
+      return slot.status === "done" ? [slot] : [];
+    }),
+    ...after.filter((slot) => slot.status === "done" && !known.has(key(slot))),
+  ];
+}
+
+/** The compactions `after` lists that `before` does not. */
+const compactionsSince = (before: LiveState, after: LiveState) =>
+  (after.compactions ?? []).filter(
+    (status) =>
+      !(before.compactions ?? []).some(({ taskId }) => taskId === status.taskId)
+  );
+
+/** The entries of `view` after `newest`, which a commit appended. */
+const entriesAfter = (view: ConversationView, newest: EntryId | undefined) =>
+  newest === undefined
+    ? view.entries
+    : view.entries.filter((entry) => entry.id > newest);
+
+type Emit = (event: AgentWireEvent) => void;
+
+/** Starts a reply under an id of its own, which its deltas and its end name. */
+function startReply(watch: Watch, emit: Emit) {
+  watch.streaming = {
+    id: crypto.randomUUID(),
+    text: "",
+    thinking: "",
+    drafted: new Set(),
+  };
+  emit({ type: AgentEventType.AssistantStart, messageId: watch.streaming.id });
+}
+
+/** Sends what `content` holds of the streaming reply that has not gone out, and the calls it began. */
+function sendStreamed(watch: Watch, emit: Emit, content: readonly Block[]) {
+  const { streaming } = watch;
+
+  if (!streaming) return;
+
+  const reply = replyText(content);
+
+  for (const channel of [DeltaChannel.Thinking, DeltaChannel.Text]) {
+    const sent = streaming[channel];
+
+    // A rewrite of what was sent cannot go out as a delta; the reply's end replaces it whole.
+    if (
+      reply[channel].length > sent.length &&
+      reply[channel].startsWith(sent)
+    ) {
+      emit({
+        type: AgentEventType.AssistantDelta,
+        messageId: streaming.id,
+        channel,
+        delta: reply[channel].slice(sent.length),
+      });
+      streaming[channel] = reply[channel];
+    }
+  }
+
+  emitDrafts(content, streaming.drafted).forEach(emit);
+}
 
 /**
- * Runs conversations on pi-durable's Harness. Every message, reply in progress and tool call is
- * stored before its event goes out, and a run the app's exit cut off continues from where it
- * stopped once `resume` runs at the next start.
+ * Sends the calls that began to run between `was` and `now`, each with what it runs on: the
+ * model's own is in the reply that made it, in `view`, and a script's call carries it.
+ */
+function sendCallStarts(
+  { transcriber }: Watch,
+  emit: Emit,
+  was: LiveState,
+  now: LiveState,
+  view: ConversationView
+) {
+  for (const slot of startedSlots(
+    was.tools,
+    now.tools,
+    (call) => call.callId
+  )) {
+    transcriber
+      .toolStart({
+        type: AgentEventType.ToolStart,
+        toolCallId: slot.callId,
+        toolName: slot.name,
+        args: callArguments(view, slot.callId),
+      })
+      .forEach(emit);
+  }
+
+  for (const slot of startedSlots(
+    was.nestedTools,
+    now.nestedTools,
+    (call) => call.taskId
+  )) {
+    transcriber
+      .toolStart({
+        type: AgentEventType.ToolStart,
+        toolCallId: slot.callId,
+        toolName: slot.name,
+        args: slot.arguments,
+        parentToolCallId: slot.parentCallId,
+      })
+      .forEach(emit);
+  }
+}
+
+/** Sends the reply `now` shows streaming: its start where `was` showed none, then what is new of it. */
+function sendReply(watch: Watch, emit: Emit, was: LiveState, now: LiveState) {
+  const partial = now.generation?.message;
+  const before = was.generation?.message;
+
+  if (!partial || partial === before) return;
+
+  if (!before) startReply(watch, emit);
+
+  sendStreamed(watch, emit, partial.content);
+}
+
+/**
+ * Sends a commit's entries in the order they were appended, and returns the calls they answer. A
+ * reply that `streamed` ends the stream begun for it; any other starts as it ends.
+ */
+function sendEntries(
+  watch: Watch,
+  emit: Emit,
+  entries: readonly EntryRecord[],
+  streamed: boolean
+) {
+  const { transcriber } = watch;
+  const answered = new Set<string>();
+  let streaming = streamed;
+
+  for (const entry of entries) {
+    const [stored] = entry.model ?? [];
+
+    if (stored?.role === "toolResult") answered.add(stored.toolCallId);
+
+    transcriber.toolResult(entry).forEach(emit);
+
+    if (AssistantEntry.is(entry) && stored?.role === "assistant") {
+      if (!streaming) {
+        startReply(watch, emit);
+        sendStreamed(watch, emit, stored.content);
+      }
+
+      streaming = false;
+      transcriber.message(entry, watch.streaming?.id).forEach(emit);
+      watch.streaming = undefined;
+    } else if (UserEntry.is(entry) || CompactionEntry.is(entry)) {
+      transcriber.message(entry).forEach(emit);
+    }
+  }
+
+  return answered;
+}
+
+/** Why a run ended without an answer, as pi-durable records it, in the run's terms. */
+function failureOf({ reason, detail }: RunFailure): RunEndEvent {
+  switch (reason) {
+    case "aborted":
+      return { type: AgentEventType.RunEnd, reason: RunEndReason.Aborted };
+
+    // The app's exits cut the run off as often as pi-durable lets one be.
+    case "interrupted":
+    case "restart_limit":
+      return { type: AgentEventType.RunEnd, reason: RunEndReason.Interrupted };
+
+    // A model error carries the provider's message; other reasons name themselves.
+    default:
+      return {
+        type: AgentEventType.RunEnd,
+        reason: RunEndReason.Error,
+        error:
+          detail ?? (reason === "no_model" ? "No model is configured" : reason),
+      };
+  }
+}
+
+/**
+ * Runs conversations on pi-durable's Harness. Every message and tool call is stored before its
+ * event goes out, a reply in progress within a second of it, and a run the app's exit cut off
+ * continues from where it stopped once `resume` runs at the next start.
  */
 export function createAgentRuntime(options: AgentRuntimeOptions) {
   const { onEvent } = options;
@@ -403,6 +569,11 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
   // The watches started so far by session id, for the approvals asked in them.
   const watchesBySession = new Map<string, Watch>();
+
+  // The store erases a conversation behind pi-durable, which keeps what it read of one in memory
+  // and fails for good on reading the rest from the file. So one erased here is never asked for
+  // again; ids are not handed out twice, and nothing is kept past the process.
+  const erased = new Set<string>();
 
   const opened = options.store.then(async (store) => ({
     store,
@@ -422,15 +593,16 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
   // A store that fails to open fails every call that waits for it instead.
   opened.catch(noop);
 
-  // A storage error closes the Harness for good, and its streams end without a word, so the runs
-  // they showed are ended here.
+  // A storage error closes the Harness for good, and no commit follows it, so the runs the watches
+  // showed are ended here.
   void opened
     .then(async ({ harness }) => {
       const end = await harness.closed;
 
-      if (end.reason !== "failed") return;
+      if (end.kind !== "failed") return;
 
       for (const [sessionId, watch] of watchesBySession) {
+        watch.observation.detach();
         watch.streaming = undefined;
 
         for (const event of watch.transcriber.runEnd({
@@ -492,7 +664,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
   ): Promise<Conversation | undefined> {
     const { harness } = await opened;
 
-    return /^[1-9]\d*$/.test(sessionId)
+    return /^[1-9]\d*$/.test(sessionId) && !erased.has(sessionId)
       ? // SAFETY: the brand only marks pi-durable's ids; looking the id up checks it names one.
         harness.conversation(
           Number(sessionId) as ConversationId,
@@ -630,143 +802,109 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     );
   }
 
-  function handle(
+  /** How a call a script made ended: stopped where pi-durable aborted it, else as it says. */
+  async function nestedEnd(slot: NestedToolSlot) {
+    const call = { toolCallId: slot.callId, toolName: slot.name };
+
+    if (!slot.summary?.isError) return scriptCallEnd(call, slot.summary);
+
+    const { harness } = await opened;
+    const task = await harness.getTask(slot.taskId, BACKGROUND_CONTEXT);
+
+    return scriptCallEnd(
+      call,
+      slot.summary,
+      task?.state.outcome?.status === "aborted"
+    );
+  }
+
+  /**
+   * Sends the events of one commit: what `next` shows that the view before it did not, in the
+   * order a renderer folds them. The context the commit leaves goes out first, so a run's end
+   * stays its last event.
+   */
+  async function step(
     watch: Watch,
-    sessionId: string,
-    events: readonly AgentEvent[]
+    conversation: Conversation,
+    next: ConversationView
   ) {
     const { transcriber } = watch;
-    const emit = (event: AgentWireEvent) => publish(watch, sessionId, event);
 
-    const sendStreamed = () => {
-      const { streaming } = watch;
+    const emit: Emit = (event) =>
+      publish(watch, String(conversation.id), event);
 
-      if (!streaming) return;
+    const was = liveOf(watch.view);
+    const now = liveOf(next);
+    const entries = entriesAfter(next, watch.newest);
 
-      const next = replyText(streaming.content);
+    watch.view = next;
+    watch.newest = entries.at(-1)?.id ?? watch.newest;
 
-      for (const channel of [DeltaChannel.Thinking, DeltaChannel.Text]) {
-        const sent = streaming[channel];
+    // The model's own calls that ended in this commit.
+    const ended = endedSlots(was.tools, now.tools, (slot) => slot.callId);
 
-        // A rewrite of what was sent cannot go out as a delta; the reply's end replaces it whole.
-        if (
-          next[channel].length > sent.length &&
-          next[channel].startsWith(sent)
-        ) {
-          emit({
-            type: AgentEventType.AssistantDelta,
-            messageId: streaming.id,
-            channel,
-            delta: next[channel].slice(sent.length),
-          });
-          streaming[channel] = next[channel];
-        }
-      }
+    // A script's call returns to its script, so only an entry or a call of the model's own
+    // changes what the next request holds.
+    if (entries.length > 0 || ended.length > 0) {
+      const tokens = await contextTokens(conversation);
 
-      emitDrafts(streaming).forEach(emit);
-    };
-
-    // A run's end and why its input went unanswered arrive in one commit, the reason last.
-    for (const event of events) {
-      if (event.type === "submission" && event.record.status === "unanswered") {
-        watch.failure = failureOf(event.record);
-      } else if (event.type === "task_failed") {
-        watch.failure = {
-          type: AgentEventType.RunEnd,
-          reason: RunEndReason.Error,
-          error: event.message,
-        };
+      if (tokens !== watch.context) {
+        watch.context = tokens;
+        emit({ type: AgentEventType.Context, tokens });
       }
     }
 
-    for (const event of events) {
-      switch (event.type) {
-        case "run_start":
-          watch.failure = undefined;
-          transcriber.runStart().forEach(emit);
-          break;
+    sendCallStarts(watch, emit, was, now, next);
+    sendReply(watch, emit, was, now);
 
-        case "message_start":
-          if (event.message.role === "assistant") {
-            watch.streaming = {
-              id: crypto.randomUUID(),
-              content: structuredClone(event.message.content),
-              text: "",
-              thinking: "",
-              drafted: new Set(),
-            };
-            emit({
-              type: AgentEventType.AssistantStart,
-              messageId: watch.streaming.id,
-            });
-            sendStreamed();
-          }
-
-          break;
-
-        case "message_update":
-          if (watch.streaming) {
-            applyChanges(watch.streaming.content, event.changes);
-            sendStreamed();
-          }
-
-          break;
-
-        case "message_end":
-          if (AssistantEntry.is(event.entry)) {
-            transcriber.message(event.entry, watch.streaming?.id).forEach(emit);
-            watch.streaming = undefined;
-          } else if (
-            UserEntry.is(event.entry) ||
-            CompactionEntry.is(event.entry)
-          ) {
-            transcriber.message(event.entry).forEach(emit);
-          }
-
-          break;
-
-        case "compaction_start":
-          emit(compactionStart(event));
-          break;
-
-        case "compaction_end":
-          emit({
-            type: AgentEventType.CompactionEnd,
-            id: String(event.taskId),
-          });
-          break;
-
-        case "tool_execution_start":
-          transcriber
-            .toolStart({
-              type: AgentEventType.ToolStart,
-              toolCallId: event.toolCallId,
-              toolName: event.toolName,
-              args: event.args,
-              parentToolCallId: event.parentToolCallId,
-            })
-            .forEach(emit);
-          break;
-
-        // A call the model made ends with its stored result, one a script made with what its
-        // script was handed, and one that never finished with neither.
-        case "tool_execution_end":
-          (event.entry
-            ? transcriber.toolResult(event.entry)
-            : transcriber.toolEnd(scriptCallEnd(event, event.result))
-          ).forEach(emit);
-          break;
-
-        case "run_end":
-          transcriber.runEnd(watch.failure).forEach(emit);
-          watch.streaming = undefined;
-          watch.failure = undefined;
-          break;
-
-        default:
-          break;
-      }
+    // Children before the calls that made them: the list holds parents first.
+    for (const slot of endedSlots(
+      was.nestedTools,
+      now.nestedTools,
+      (call) => call.taskId
+    ).reverse()) {
+      transcriber.toolEnd(await nestedEnd(slot)).forEach(emit);
     }
+
+    const answered = sendEntries(
+      watch,
+      emit,
+      entries,
+      was.generation?.message !== undefined
+    );
+
+    // A call that ended without a result: its task failed where it could not say so, or its run
+    // ended first.
+    for (const slot of ended.filter(({ callId }) => !answered.has(callId))) {
+      transcriber
+        .toolEnd(
+          scriptCallEnd(
+            { toolCallId: slot.callId, toolName: slot.name },
+            undefined
+          )
+        )
+        .forEach(emit);
+    }
+
+    for (const { taskId } of compactionsSince(now, was)) {
+      emit({ type: AgentEventType.CompactionEnd, id: String(taskId) });
+    }
+
+    // A run is told from the next by the input that started it.
+    const runChanged = now.run?.inputs[0] !== was.run?.inputs[0];
+
+    if (was.run && runChanged) {
+      // The commit that ends a run without an answer says why.
+      const failure =
+        now.runFailure === was.runFailure ? undefined : now.runFailure;
+
+      transcriber.runEnd(failure && failureOf(failure)).forEach(emit);
+      watch.streaming = undefined;
+    }
+
+    compactionsSince(was, now).map(compactionStart).forEach(emit);
+
+    if (now.run && runChanged) transcriber.runStart().forEach(emit);
   }
 
   /** Starts sending a conversation's events, before any run of it starts. */
@@ -780,90 +918,114 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     const watch = (async (): Promise<Watch> => {
       const { harness } = await opened;
 
-      const stream = await watchEvents(
-        harness,
+      // Commits that arrive before the watch can send them wait here, in order.
+      const waiting: ConversationView[] = [];
+
+      let take = (view: ConversationView) => {
+        waiting.push(view);
+      };
+
+      const observation = await harness.observeConversation(
         conversation.id,
+        {
+          // Called as pi-durable adopts a commit, where nothing may wait or throw, so the commit
+          // is only kept for `step`.
+          advance(call) {
+            if (call.kind === "value") take(call.value);
+          },
+          end: noop,
+        },
         BACKGROUND_CONTEXT
       );
 
-      const { snapshot } = stream;
+      try {
+        const view = observation.value;
+        const live = liveOf(view);
 
-      // Stored entries never change and ids only grow, so the history up to the newest entry the
-      // stream found is the conversation as it found it; later entries arrive as events.
-      const newest = maxBy(snapshot.entries, (entry) => entry.id);
-      const entries = newest ? await history(conversation, newest.id) : [];
+        // Stored entries never change and ids only grow, so the history up to the newest entry
+        // the view holds is the conversation as it was found; later entries arrive with their
+        // commits.
+        const newest = view.entries.at(-1)?.id;
 
-      const running = snapshot.run !== undefined;
+        const entries =
+          newest === undefined ? [] : await history(conversation, newest);
 
-      const transcriber = createTranscriber(await approvalsOf(conversation.id));
+        const running = live.run !== undefined;
 
-      const base = transcriber.replay(entries, running);
-      const partial = snapshot.generation?.message;
-
-      base.push(...snapshot.compactions.map(compactionStart));
-
-      const context = await contextTokens(conversation);
-
-      if (context > 0)
-        base.push({ type: AgentEventType.Context, tokens: context });
-
-      const created: Watch = { stream, base, log: [], transcriber, context };
-
-      if (running && partial) {
-        const id = crypto.randomUUID();
-        const { text, thinking } = replyText(partial.content);
-
-        created.streaming = {
-          id,
-          content: structuredClone(partial.content),
-          text,
-          thinking,
-          drafted: new Set(),
-        };
-        base.push(
-          { type: AgentEventType.AssistantStart, messageId: id },
-          {
-            type: AgentEventType.AssistantDelta,
-            messageId: id,
-            channel: DeltaChannel.Thinking,
-            delta: thinking,
-          },
-          {
-            type: AgentEventType.AssistantDelta,
-            messageId: id,
-            channel: DeltaChannel.Text,
-            delta: text,
-          },
-          ...emitDrafts(created.streaming)
+        const transcriber = createTranscriber(
+          await approvalsOf(conversation.id)
         );
-      }
 
-      watchesBySession.set(sessionId, created);
-      // The context a commit leaves goes out before its events, so a run's end stays its last.
-      stream.start(async (events) => {
-        // A script's call returns to its script, so it leaves the context as it was.
-        if (
-          events.some(
-            (event) =>
-              CONTEXT_CHANGES.has(event.type) &&
-              !("parentToolCallId" in event && event.parentToolCallId)
-          )
-        ) {
-          const tokens = await contextTokens(conversation);
+        const base = transcriber.replay(
+          entries,
+          running,
+          live.runFailure && failureOf(live.runFailure)
+        );
 
-          if (tokens !== created.context) {
-            created.context = tokens;
-            publish(created, sessionId, {
-              type: AgentEventType.Context,
-              tokens,
-            });
-          }
+        const partial = live.generation?.message;
+
+        base.push(...(live.compactions ?? []).map(compactionStart));
+
+        const context = await contextTokens(conversation);
+
+        if (context > 0)
+          base.push({ type: AgentEventType.Context, tokens: context });
+
+        const created: Watch = {
+          observation,
+          base,
+          log: [],
+          transcriber,
+          view,
+          newest,
+          context,
+          sent: Promise.resolve(),
+        };
+
+        if (running && partial) {
+          const id = crypto.randomUUID();
+          const { text, thinking } = replyText(partial.content);
+          const drafted = new Set<string>();
+
+          created.streaming = { id, text, thinking, drafted };
+          base.push(
+            { type: AgentEventType.AssistantStart, messageId: id },
+            {
+              type: AgentEventType.AssistantDelta,
+              messageId: id,
+              channel: DeltaChannel.Thinking,
+              delta: thinking,
+            },
+            {
+              type: AgentEventType.AssistantDelta,
+              messageId: id,
+              channel: DeltaChannel.Text,
+              delta: text,
+            },
+            ...emitDrafts(partial.content, drafted)
+          );
         }
 
-        handle(created, sessionId, events);
-      });
+        watchesBySession.set(sessionId, created);
 
-      return created;
+        // One commit at a time, each after the one before it. A commit whose events cannot be
+        // sent is reported as a listener's failure, and the ones after it still go out.
+        take = (next) => {
+          created.sent = created.sent
+            .then(() => step(created, conversation, next))
+            .catch((error) =>
+              options.onReport?.({ kind: "listener_error", error })
+            );
+        };
+
+        waiting.forEach(take);
+
+        return created;
+      } catch (error) {
+        observation.detach();
+
+        throw error;
+      }
     })();
 
     watches.set(conversation.id, watch);
@@ -872,12 +1034,14 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
     return watch;
   }
 
+  /** Stops sending a conversation's events, once those of the commits already taken went out. */
   async function detach(id: ConversationId) {
-    const watch = watches.get(id);
+    const watch = await watches.get(id)?.catch(() => undefined);
 
     watches.delete(id);
     watchesBySession.delete(String(id));
-    await (await watch?.catch(() => undefined))?.stream.stop();
+    watch?.observation.detach();
+    await watch?.sent;
   }
 
   return {
@@ -892,22 +1056,12 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
 
       const { tasks } = await harness.inspect(BACKGROUND_CONTEXT);
 
-      const parked = new Set(
-        tasks.filter(isParked).map((task) => task.record.conversationId)
-      );
-
       for (const id of new Set(
         tasks.map((task) => task.record.conversationId)
       )) {
         const conversation = await harness.conversation(id, BACKGROUND_CONTEXT);
 
-        if (!conversation) continue;
-
-        const watch = await attach(conversation);
-
-        if (parked.has(id)) {
-          publish(watch, String(id), { type: AgentEventType.RunParked });
-        }
+        if (conversation) await attach(conversation);
       }
 
       harness.resume();
@@ -1067,7 +1221,8 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       const events = [
         ...createTranscriber(await approvalsOf(conversation.id)).replay(
           await history(conversation),
-          live?.run !== undefined
+          live?.run !== undefined,
+          live?.runFailure && failureOf(live.runFailure)
         ),
         ...(live?.compactions ?? []).map(compactionStart),
       ];
@@ -1184,7 +1339,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       }
 
       if (
-        (live?.compactions ?? []).some((status) => status.reason === "manual")
+        (live?.compactions ?? []).some((status) => status.trigger === "manual")
       ) {
         throw new Error("The conversation is already being summarized");
       }
@@ -1218,28 +1373,6 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       }
     },
 
-    /** Runs a parked run again from where it stopped; a run that is not parked is left as it is. */
-    async retry(sessionId: string) {
-      const conversation = await conversationOf(sessionId);
-      const { harness } = await opened;
-      const { tasks } = await harness.inspect(BACKGROUND_CONTEXT);
-
-      const parked = tasks.filter(
-        (task) =>
-          task.record.conversationId === conversation.id && isParked(task)
-      );
-
-      if (parked.length === 0) return;
-
-      for (const task of parked) {
-        await harness.retryTask(task.record.id, BACKGROUND_CONTEXT);
-      }
-
-      publish(await attach(conversation), sessionId, {
-        type: AgentEventType.RunRetried,
-      });
-    },
-
     /** Stops a run; what it streamed so far is kept, ending as aborted. */
     async abort(sessionId: string) {
       await (await conversationOf(sessionId)).abort(BACKGROUND_CONTEXT);
@@ -1253,6 +1386,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions) {
       await conversation.abort(BACKGROUND_CONTEXT);
       await detach(conversation.id);
       await store.deleteConversation(conversation.id);
+      erased.add(sessionId);
     },
 
     /** Closes the store as the app quits; runs still going continue at the next start. */

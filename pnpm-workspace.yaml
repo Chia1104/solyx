@@ -91,11 +91,11 @@ catalogs:
     pdfjs-dist: 6.4.299
     unpdf: 2.1.0
   pi:
-    "@earendil-works/chord": 1.4.0
-    "@earendil-works/pi-ai": 1.4.0
-    "@earendil-works/pi-codemode": 1.4.0
-    "@earendil-works/pi-durable": 1.4.0
-    "@earendil-works/pi-mcp": 1.4.0
+    "@earendil-works/chord": 1.5.2
+    "@earendil-works/pi-ai": 1.5.2
+    "@earendil-works/pi-codemode": 1.5.2
+    "@earendil-works/pi-durable": 1.5.2
+    "@earendil-works/pi-mcp": 1.5.2
   react:
     "@types/react": ^19.3.0
     "@types/react-dom": ^19.3.0
@@ -171,11 +171,14 @@ ignoredOptionalDependencies:
 overrides:
   vite@*: "catalog:"
   "@opentelemetry/api": "catalog:otel"
+# Chord names the one ws release its own servers were tested on, and Solyx starts none of them:
+# the agent takes only Chord's types, and the backend's edge runs on the ws of the server catalog.
 peerDependencyRules:
   allowAny:
     - vite
   allowedVersions:
     vite: "*"
+    "@earendil-works/chord>ws": "8"
 minimumReleaseAgeExclude:
   - "@voidzero-dev/vite-plus-core@1.0.0"
   - "@voidzero-dev/vite-plus-darwin-arm64@1.0.0"

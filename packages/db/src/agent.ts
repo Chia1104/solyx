@@ -15,6 +15,8 @@ export interface AgentStore {
    * Erases a conversation and everything it owns from the file, which pi-durable cannot do.
    * Rejects without deleting anything while the conversation has unfinished work, while another
    * conversation forks from it, or once pi-durable's schema has moved past the one this knows.
+   * pi-durable's open session is not told and keeps what it read of the conversation, so whoever
+   * erases one must not read it through that session again.
    */
   deleteConversation(id: ConversationId): Promise<void>;
   /** The file on disk, with its write-ahead log. */

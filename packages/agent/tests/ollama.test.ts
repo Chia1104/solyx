@@ -1,4 +1,4 @@
-import { Type, createModels } from "@earendil-works/pi-ai";
+import { createModels } from "@earendil-works/pi-ai";
 import type {
   AssistantMessageEvent,
   Context,
@@ -124,7 +124,11 @@ const CONTEXT: Context = {
     {
       name: "get_quotes",
       description: "The newest session of some listings.",
-      parameters: Type.Object({ symbols: Type.Array(Type.String()) }),
+      parameters: {
+        type: "object",
+        properties: { symbols: { type: "array", items: { type: "string" } } },
+        required: ["symbols"],
+      },
     },
   ],
   messages: [

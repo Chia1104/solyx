@@ -92,11 +92,6 @@ export const agentContract = {
     .output(type<FileText>()),
   abort: oc.meta(forDevices(true)).input(idSchema).output(type<void>()),
   /**
-   * Runs a run the app's exits parked again from where it stopped. Only a window may, since a
-   * run a window started may run calls unasked.
-   */
-  retry: oc.input(idSchema).output(type<void>()),
-  /**
    * Summarizes the conversation's older messages, guided by `instructions`, and resolves once the
    * summary is placed or nothing is old enough. Stopping the conversation stops it.
    */

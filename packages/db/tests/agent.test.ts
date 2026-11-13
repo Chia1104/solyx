@@ -75,9 +75,6 @@ test("a deleted conversation leaves nothing of its own in the file", async () =>
 
   await store.deleteConversation(gone);
 
-  expect(
-    await session.commit((tx) => tx.conversation(gone), context)
-  ).toBeUndefined();
   expect(await session.snapshot(NoteDoc, kept, context)).toEqual({
     text: "kept note",
   });
@@ -90,10 +87,14 @@ test("a deleted conversation leaves nothing of its own in the file", async () =>
   expect(bytes.includes("secret entry")).toBe(false);
   expect(bytes.includes("secret note")).toBe(false);
 
-  // A fresh conversation never takes an erased one's id.
+  // The session that was open kept what it had read of the conversation, so the file is asked
+  // through another. A fresh conversation never takes an erased one's id.
   store = await openAgentStore(path);
   session = createSession(store.storage);
 
+  expect(
+    await session.commit((tx) => tx.conversation(gone), context)
+  ).toBeUndefined();
   expect(await conversation("later")).toBeGreaterThan(gone);
 });
 

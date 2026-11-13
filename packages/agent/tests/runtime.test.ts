@@ -684,9 +684,9 @@ test("a run the app's exit cut off continues when the app starts again", async (
 
 /**
  * A conversation whose run the app was cut off in, as a crash leaves its file, opened again on a
- * limit of one restart, so pi-durable parks the run rather than run it again.
+ * limit of one restart, so pi-durable ends the run rather than run it again.
  */
-async function parkedRun() {
+async function cutOffRun() {
   const path = join(directory, "agent.sqlite");
   const crashed = join(directory, "crashed.sqlite");
 
@@ -721,7 +721,7 @@ async function parkedRun() {
 
   const second = setup({
     store: await fileStore(crashed),
-    settings: { restartLimit: 1 },
+    settings: { restartLimit: 1, retry: { maxRetries: 0 } },
     onReport: reported,
   });
 
@@ -730,50 +730,35 @@ async function parkedRun() {
   return { id, second, reported };
 }
 
-test("a run the app keeps being cut off in waits for the user, and runs again once retried", async () => {
-  const { id, second, reported } = await parkedRun();
+test("a run the app keeps being cut off in ends as interrupted, and the conversation takes a message again", async () => {
+  const { id, second, reported } = await cutOffRun();
+
+  await second.ended();
 
   expect(reported).toHaveBeenCalledExactlyOnceWith(
-    expect.any(Error),
-    expect.objectContaining({ type: "task_parked" })
+    expect.objectContaining({ kind: "task_interrupted" })
   );
-  expect(second.events).toContainEqual({ type: AgentEventType.RunParked });
-  expect(foldEvents(await second.runtime.transcript(id))).toMatchObject({
-    running: true,
-    parked: true,
+  expect(second.events.at(-1)).toEqual({
+    type: AgentEventType.RunEnd,
+    reason: RunEndReason.Interrupted,
   });
-  expect(await second.runtime.busy(id)).toBe(true);
+  expect(await second.runtime.busy(id)).toBe(false);
   expect(second.faux.state.callCount).toBe(0);
 
   second.faux.setResponses([fauxAssistantMessage("You watch 2330.")]);
 
-  await second.runtime.retry(id);
-  await second.ended();
+  await second.runtime.send(id, { text: "Go on.", context: "" });
+  await second.ended(2);
 
   expect(foldEvents(await second.runtime.transcript(id))).toMatchObject({
     running: false,
-    parked: false,
     items: [
       { kind: AgentItemKind.User, text: "What do I watch?" },
+      { kind: AgentItemKind.Notice, reason: RunEndReason.Interrupted },
+      { kind: AgentItemKind.User, text: "Go on." },
       { kind: AgentItemKind.Assistant, text: "You watch 2330." },
     ],
   });
-
-  await second.runtime.close();
-});
-
-test("stopping a parked run ends it, and the conversation takes a message again", async () => {
-  const { id, second } = await parkedRun();
-
-  await second.runtime.abort(id);
-  await second.ended();
-
-  expect(foldEvents(await second.runtime.transcript(id))).toMatchObject({
-    running: false,
-    parked: false,
-  });
-  expect(await second.runtime.busy(id)).toBe(false);
-  expect(second.faux.state.callCount).toBe(0);
 
   await second.runtime.close();
 });
